@@ -24,6 +24,35 @@ impl ItemData {
 			is_open: true,
 		}
 	}
+
+	pub fn is_new(&self) -> bool {
+		self.name.len() == 0
+	}
+}
+
+pub struct UnitData {
+	pub uuid: Uuid,
+	/// Display name
+	pub name: String,
+	pub desc: String,
+	pub unsaved_changes: bool,
+	pub is_open: bool,
+}
+
+impl UnitData {
+	pub fn new() -> Self {
+		Self {
+			uuid: Uuid::new_v4(),
+			name: String::new(),
+			desc: String::new(),
+			unsaved_changes: true,
+			is_open: true,
+		}
+	}
+
+	pub fn is_new(&self) -> bool {
+		self.name.len() == 0
+	}
 }
 
 pub struct ItemEditor {
@@ -42,14 +71,29 @@ impl ItemEditor {
 	}
 }
 
+pub struct UnitEditor {
+	pub unsaved: bool,
+	pub units: Vec<UnitData>,
+	pub search_field: String,
+}
+
+impl UnitEditor {
+	pub fn new() -> Self {
+		Self {
+			unsaved: false,
+			units: Vec::new(),
+			search_field: String::new(),
+		}
+	}
+}
+
 fn main() {
 	let system = support::init(WINDOW_NAME);
 
 	let mut item_editor = ItemEditor::new();
+	let mut unit_editor = UnitEditor::new();
 
 	system.main_loop(move |_, ui| {
-		let display_size = ui.io().display_size;
-
 		ui.main_menu_bar(|| {
 			ui.menu("File", || {
 				if ui.menu_item("Open") {
@@ -66,11 +110,8 @@ fn main() {
 		});
 
 		ui.window("Items")
-			.position([display_size[0] - display_size[0] / 5.0 - 16.0, 32.0], Condition::Always)
-			.size([display_size[0] / 5.0, display_size[1] - 48.0], Condition::Always)
-			.no_decoration()
-			.title_bar(true)
-			.movable(false)
+			.position([32.0, 32.0], Condition::FirstUseEver)
+			.size([200.0, 400.0], Condition::FirstUseEver)
 			.menu_bar(true)
 			.unsaved_document(item_editor.unsaved)
 			.build(|| {
@@ -92,19 +133,84 @@ fn main() {
 
 					let _id = ui.push_id(&item.uuid.to_string());
 
-					ui.input_text("##name", &mut item.name)
-						.hint("Name")
-						.build();
+					ui.tree_node_config("##header")
+						.label::<&str, &str>(&String::from(
+							if item.name.len() > 0 {
+								&item.name
+							} else {
+								"New Item"
+							}))
+						.framed(true)
+						// Open the item entry if the name is empty,
+						// since this means it's newly created; empty items can't be loaded from disk.
+						.opened(item.is_new(), Condition::FirstUseEver)
+						.build(|| {
+							ui.input_text("##name", &mut item.name)
+								.hint("Name")
+								.build();
 
-					ui.input_text("##desc", &mut item.desc)
-						.hint("Description")
-						.build();
+							ui.input_text("##desc", &mut item.desc)
+								.hint("Description")
+								.build();
+						});
 
-					ui.separator();
+
+					//ui.separator();
 				}
 
 				if ui.button("Create New Item") {
 					item_editor.items.push(ItemData::new());
+				}
+			});
+
+		ui.window("Units")
+			.position([32.0 * 2.0 + 200.0, 32.0], Condition::FirstUseEver)
+			.size([200.0, 400.0], Condition::FirstUseEver)
+			.menu_bar(true)
+			.unsaved_document(unit_editor.unsaved)
+			.build(|| {
+				ui.menu_bar(|| {
+					ui.menu_item("Save");
+				});
+
+				ui.text("Search:");
+				ui.input_text("##search", &mut unit_editor.search_field).build();
+
+				ui.separator();
+
+				for unit in &mut unit_editor.units {
+					if unit_editor.search_field.len() > 0
+						&& !unit.name.to_ascii_lowercase().contains(&unit_editor.search_field.to_ascii_lowercase())
+					{
+						continue;
+					}
+
+					let _id = ui.push_id(&unit.uuid.to_string());
+
+					ui.tree_node_config("##header")
+						.label::<&str, &str>(&String::from(
+							if unit.name.len() > 0 {
+								&unit.name
+							} else {
+								"New Unit"
+							}))
+						.framed(true)
+						// Open the item entry if the name is empty,
+						// since this means it's newly created; empty items can't be loaded from disk.
+						.opened(unit.is_new(), Condition::FirstUseEver)
+						.build(|| {
+							ui.input_text("##name", &mut unit.name)
+								.hint("Name")
+								.build();
+
+							ui.input_text("##desc", &mut unit.desc)
+								.hint("Description")
+								.build();
+						});
+				}
+
+				if ui.button("Create New Unit") {
+					unit_editor.units.push(UnitData::new());
 				}
 			});
 	});

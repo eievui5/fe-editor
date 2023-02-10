@@ -84,7 +84,7 @@ pub fn init(title: &str) -> System {
     // scaling factor. Meaning, 13.0 pixels should look the same size
     // on two different screens, and thus we do not need to scale this
     // value (as the scaling is handled by winit)
-    let font_size = 13.0;
+    let font_size = 16.0;
 
     imgui.fonts().add_font(&[
         FontSource::TtfData {
@@ -95,7 +95,7 @@ pub fn init(title: &str) -> System {
                 // it's font rendering, we apply an arbitrary
                 // multiplier to make the font a bit "heavier". With
                 // default imgui-glow-renderer this is unnecessary.
-                rasterizer_multiply: 1.5,
+                rasterizer_multiply: 1.0,
                 // Oversampling font helps improve text rendering at
                 // expense of larger font atlas texture.
                 oversample_h: 4,

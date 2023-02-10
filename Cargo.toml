@@ -11,3 +11,4 @@ glium = "0.32.1"
 imgui = "0.10.0"
 imgui-glium-renderer = "0.10.0"
 imgui-winit-support = "0.10.0"
+uuid = { version = "1.3.0", features = ["v4", "fast-rng"] }

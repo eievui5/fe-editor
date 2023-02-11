@@ -3,7 +3,107 @@ use uuid::Uuid;
 
 mod support;
 
-const WINDOW_NAME: &str = "Furry Emblem - Editor";
+trait ListItem {
+	fn editor(&mut self, ui: &Ui);
+	fn close(&mut self);
+	fn is_new(&self) -> bool;
+	fn uuid(&self) -> Uuid;
+	fn name(&self) -> &String;
+}
+
+trait EditorList {
+	type Item: ListItem;
+	fn entries(&self) -> &Vec<Self::Item>;
+	fn entries_mut(&mut self) -> &mut Vec<Self::Item>;
+	fn add_entry(&mut self);
+	fn has_changes(&self) -> bool;
+	fn search(&self) -> &str;
+	fn search_mut(&mut self) -> &mut String;
+}
+
+trait CustomUi {
+	fn editor_list<T: EditorList>(&self, editor: &mut T, hint: &str, position: (f32, f32));
+}
+
+impl CustomUi for Ui {
+	fn editor_list<T: EditorList>(&self, editor: &mut T, hint: &str, position: (f32, f32)) {
+		self.window(hint)
+			.position([position.0, position.1], Condition::FirstUseEver)
+			.size([200.0, 400.0], Condition::FirstUseEver)
+			.menu_bar(true)
+			.unsaved_document(editor.has_changes())
+			.build(|| {
+				self.menu_bar(|| {
+					self.menu_item("Save");
+				});
+
+				self.text("Search:");
+				self.input_text("##search", &mut editor.search_mut()).build();
+
+				self.separator();
+
+				let normalized_query = if editor.search().len() > 0 {
+					Some(editor.search().to_ascii_lowercase())
+				} else {
+					None
+				};
+
+				for item in editor.entries_mut() {
+					if let Some(query) = &normalized_query {
+						if !item.name().to_ascii_lowercase().contains(query) {
+							continue;
+						}
+					}
+
+					let _id = self.push_id(&item.uuid().to_string());
+
+					self.tree_node_config("##header")
+						.label::<String, String>(
+							if item.name().len() > 0 {
+								item.name().clone()
+							} else {
+								format!("New {hint}")
+							}
+						)
+						.framed(true)
+						// Open the item entry if the name is empty,
+						// since this means it's newly created; empty items can't be loaded from disk.
+						.opened(item.is_new(), Condition::FirstUseEver)
+						.build(|| {
+							item.editor(&self);
+
+							if self.button("Delete") {
+								self.open_popup("Delete");
+							}
+
+							if self.modal_popup_config("Delete").build(|| {
+								self.text_wrapped(&format!(
+									"Do you really want to delete \"{}\"?",
+									item.name()
+								));
+								if self.button("Cancel") {
+									self.close_current_popup();
+								}
+								self.same_line();
+								if self.button("Delete") {
+									self.close_current_popup();
+									return true;
+								}
+								false
+							}) == Some(true) {
+								item.close()
+							}
+						});
+
+					self.separator();
+				}
+
+				if self.button(&format!("Create New {hint}")) {
+					editor.add_entry();
+				}
+			});
+	}
+}
 
 pub struct ItemData {
 	pub uuid: Uuid,
@@ -24,10 +124,23 @@ impl ItemData {
 			is_open: true,
 		}
 	}
+}
 
-	pub fn is_new(&self) -> bool {
-		self.name.len() == 0
+impl ListItem for ItemData {
+	fn editor(&mut self, ui: &Ui) {
+		ui.input_text("##name", &mut self.name)
+			.hint("Name")
+			.build();
+
+		ui.input_text("##desc", &mut self.desc)
+			.hint("Description")
+			.build();
 	}
+	
+	fn close(&mut self) { self.is_open = false; }
+	fn is_new(&self) -> bool {  self.name.len() == 0 }
+	fn uuid(&self) -> Uuid { self.uuid }
+	fn name(&self) -> &String { &self.name }
 }
 
 pub struct UnitData {
@@ -49,10 +162,23 @@ impl UnitData {
 			is_open: true,
 		}
 	}
+}
 
-	pub fn is_new(&self) -> bool {
-		self.name.len() == 0
+impl ListItem for UnitData {
+	fn editor(&mut self, ui: &Ui) {
+		ui.input_text("##name", &mut self.name)
+			.hint("Name")
+			.build();
+
+		ui.input_text("##desc", &mut self.desc)
+			.hint("Description")
+			.build();
 	}
+
+	fn close(&mut self) { self.is_open = false; }
+	fn is_new(&self) -> bool {  self.name.len() == 0 }
+	fn uuid(&self) -> Uuid { self.uuid }
+	fn name(&self) -> &String { &self.name }
 }
 
 pub struct ItemEditor {
@@ -71,6 +197,17 @@ impl ItemEditor {
 	}
 }
 
+impl EditorList for ItemEditor {
+	type Item = ItemData;
+
+	fn entries(&self) -> &Vec<Self::Item> { &self.items }
+	fn entries_mut(&mut self) -> &mut Vec<Self::Item> { &mut self.items }
+	fn add_entry(&mut self) { self.items.push(ItemData::new()); }
+	fn has_changes(&self) -> bool { self.unsaved }
+	fn search(&self) -> &str { &self.search_field }
+	fn search_mut(&mut self) -> &mut String { &mut self.search_field }
+}
+
 pub struct UnitEditor {
 	pub unsaved: bool,
 	pub units: Vec<UnitData>,
@@ -87,8 +224,19 @@ impl UnitEditor {
 	}
 }
 
+impl EditorList for UnitEditor {
+	type Item = UnitData;
+	
+	fn entries(&self) -> &Vec<Self::Item> { &self.units }
+	fn entries_mut(&mut self) -> &mut Vec<Self::Item> { &mut self.units }
+	fn add_entry(&mut self) { self.units.push(UnitData::new()); }
+	fn has_changes(&self) -> bool { self.unsaved }
+	fn search(&self) -> &str { &self.search_field }
+	fn search_mut(&mut self) -> &mut String { &mut self.search_field }
+}
+
 fn main() {
-	let system = support::init(WINDOW_NAME);
+	let system = support::init("Furry Emblem - Editor");
 
 	let mut item_editor = ItemEditor::new();
 	let mut unit_editor = UnitEditor::new();
@@ -109,109 +257,20 @@ fn main() {
 			});
 		});
 
-		ui.window("Items")
-			.position([32.0, 32.0], Condition::FirstUseEver)
-			.size([200.0, 400.0], Condition::FirstUseEver)
-			.menu_bar(true)
-			.unsaved_document(item_editor.unsaved)
-			.build(|| {
-				ui.menu_bar(|| {
-					ui.menu_item("Save");
-				});
+		ui.editor_list(
+			&mut item_editor,
+			"Item",
+			(32.0, 32.0),
+		);
 
-				ui.text("Search:");
-				ui.input_text("##search", &mut item_editor.search_field).build();
+		ui.editor_list(
+			&mut unit_editor,
+			"Unit",
+			(32.0 * 2.0 + 200.0, 32.0),
+		);
 
-				ui.separator();
-
-				for item in &mut item_editor.items {
-					if item_editor.search_field.len() > 0
-						&& !item.name.to_ascii_lowercase().contains(&item_editor.search_field.to_ascii_lowercase())
-					{
-						continue;
-					}
-
-					let _id = ui.push_id(&item.uuid.to_string());
-
-					ui.tree_node_config("##header")
-						.label::<&str, &str>(&String::from(
-							if item.name.len() > 0 {
-								&item.name
-							} else {
-								"New Item"
-							}))
-						.framed(true)
-						// Open the item entry if the name is empty,
-						// since this means it's newly created; empty items can't be loaded from disk.
-						.opened(item.is_new(), Condition::FirstUseEver)
-						.build(|| {
-							ui.input_text("##name", &mut item.name)
-								.hint("Name")
-								.build();
-
-							ui.input_text("##desc", &mut item.desc)
-								.hint("Description")
-								.build();
-						});
-
-
-					//ui.separator();
-				}
-
-				if ui.button("Create New Item") {
-					item_editor.items.push(ItemData::new());
-				}
-			});
-
-		ui.window("Units")
-			.position([32.0 * 2.0 + 200.0, 32.0], Condition::FirstUseEver)
-			.size([200.0, 400.0], Condition::FirstUseEver)
-			.menu_bar(true)
-			.unsaved_document(unit_editor.unsaved)
-			.build(|| {
-				ui.menu_bar(|| {
-					ui.menu_item("Save");
-				});
-
-				ui.text("Search:");
-				ui.input_text("##search", &mut unit_editor.search_field).build();
-
-				ui.separator();
-
-				for unit in &mut unit_editor.units {
-					if unit_editor.search_field.len() > 0
-						&& !unit.name.to_ascii_lowercase().contains(&unit_editor.search_field.to_ascii_lowercase())
-					{
-						continue;
-					}
-
-					let _id = ui.push_id(&unit.uuid.to_string());
-
-					ui.tree_node_config("##header")
-						.label::<&str, &str>(&String::from(
-							if unit.name.len() > 0 {
-								&unit.name
-							} else {
-								"New Unit"
-							}))
-						.framed(true)
-						// Open the item entry if the name is empty,
-						// since this means it's newly created; empty items can't be loaded from disk.
-						.opened(unit.is_new(), Condition::FirstUseEver)
-						.build(|| {
-							ui.input_text("##name", &mut unit.name)
-								.hint("Name")
-								.build();
-
-							ui.input_text("##desc", &mut unit.desc)
-								.hint("Description")
-								.build();
-						});
-				}
-
-				if ui.button("Create New Unit") {
-					unit_editor.units.push(UnitData::new());
-				}
-			});
+		// End-of-frame cleanup
+		item_editor.items.retain(|i| i.is_open);
+		unit_editor.units.retain(|i| i.is_open);
 	});
 }

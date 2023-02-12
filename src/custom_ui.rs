@@ -23,12 +23,13 @@ impl CustomUi for Ui {
 			return;
 		}
 
-		self.window(hint)
+		self.window(&format!("{hint}s"))
 			.opened(&mut is_shown)
 			.position([position.0, position.1], Condition::FirstUseEver)
 			.size([200.0, 400.0], Condition::FirstUseEver)
 			.menu_bar(true)
 			.focus_on_appearing(false)
+			.collapsed(true, Condition::FirstUseEver)
 			.unsaved_document(editor.has_changes())
 			.build(|| {
 				self.menu_bar(|| {

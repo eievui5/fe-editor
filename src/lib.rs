@@ -1,5 +1,6 @@
 mod custom_ui;
 mod items;
+mod texture_loader;
 mod units;
 
 pub mod support;
@@ -7,9 +8,12 @@ pub mod support;
 use imgui::*;
 use uuid::Uuid;
 
-pub use items::*;
-pub use units::*;
 pub use custom_ui::*;
+pub use items::*;
+pub use texture_loader::*;
+pub use units::*;
+
+pub use glium::backend::Facade;
 
 pub trait ListItem {
 	fn editor(&mut self, ui: &Ui);

@@ -13,46 +13,11 @@ fn main() {
 	let mut system = support::init("Furry Emblem - Editor");
 
 	let mut selected_tile = 0;
-	let texture_atlas = [
-		register_texture_rgba(
-			system.display.get_context(),
-			system.renderer.textures(),
-			{
-				let mut data = Vec::with_capacity(100 * 100);
-				for i in 0..100 {
-					for j in 0..100 {
-						// Insert RGB values
-						data.push(i as u8);
-						data.push(j as u8);
-						data.push((i + j) as u8);
-						data.push(255);
-					}
-				}
-				data
-			},
-			100,
-			100,
-		).unwrap(),
-		register_texture_rgba(
-			system.display.get_context(),
-			system.renderer.textures(),
-			{
-				let mut data = Vec::with_capacity(100 * 100);
-				for i in 0..100 {
-					for j in 0..100 {
-						// Insert RGB values
-						data.push((i + j) as u8);
-						data.push(i as u8);
-						data.push(j as u8);
-						data.push(255);
-					}
-				}
-				data
-			},
-			100,
-			100,
-		).unwrap(),
-	];
+	let texture_atlas = register_tileset(
+		system.display.get_context(),
+		system.renderer.textures(),
+		&image::open("src/tree_tiles.png").unwrap(),
+	).unwrap();
 
 	let highlight_tile = register_image(
 		system.display.get_context(),

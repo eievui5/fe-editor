@@ -6,6 +6,7 @@ mod units;
 pub mod support;
 
 use imgui::*;
+use std::fmt::{self, Display, Formatter};
 use uuid::Uuid;
 
 pub use custom_ui::*;
@@ -33,3 +34,24 @@ pub trait EditorList {
 	fn search_mut(&mut self) -> &mut String;
 	fn is_shown(&mut self) -> &mut bool;
 }
+
+#[derive(Debug)]
+pub struct Error {
+	pub msg: String,
+}
+
+impl Display for Error {
+	fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+		write!(f, "{}", self.msg)
+	}
+}
+
+impl From<&str> for Error {
+	fn from(s: &str) -> Self {
+		Self {
+			msg: s.to_string(),
+		}
+	}
+}
+
+impl std::error::Error for Error {}

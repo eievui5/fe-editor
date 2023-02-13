@@ -7,6 +7,8 @@ use glium::texture::{ClientFormat, RawImage2d};
 use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter, SamplerBehavior};
 use glium::backend::Facade;
 
+const TILE_SIZE: u32 = 16;
+
 pub fn register_image_path<F, I: GenericImageView<Pixel=Rgba<u8>>>(
 	gl_ctx: &F,
 	textures: &mut Textures<Texture>,
@@ -20,6 +22,34 @@ pub fn register_image_path<F, I: GenericImageView<Pixel=Rgba<u8>>>(
 			.decode()
 			.unwrap()
 	)
+}
+
+pub fn register_tileset<F, I: GenericImageView<Pixel=Rgba<u8>>>(
+	gl_ctx: &F,
+	textures: &mut Textures<Texture>,
+	image: &I
+) -> Result<Vec<TextureId>, Box<dyn Error>> where F: Facade {
+	let mut ids = Vec::new();
+
+	if image.width() % TILE_SIZE != 0 || image.height() % TILE_SIZE != 0 {
+		return Err(Box::from(crate::Error { msg: format!(
+			"Image width or height is not a multiple of {TILE_SIZE}."
+		)}));
+	}
+
+	for y in (0..image.height()).step_by(TILE_SIZE as usize) {
+		for x in (0..image.width()).step_by(TILE_SIZE as usize) {
+			ids.push(
+				register_image(
+					gl_ctx,
+					textures,
+					&*image.view(x, y, TILE_SIZE, TILE_SIZE),
+				)?
+			);
+		}
+	}
+
+	Ok(ids)
 }
 
 pub fn register_image<F, I: GenericImageView<Pixel=Rgba<u8>>>(

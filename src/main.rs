@@ -208,10 +208,12 @@ fn main() {
 				});
 
 				for i in &unit_list {
+					let x = window_pos[0] + map_scroll[0] + (i.0 as f32) * map_zoom_level;
+					let y = window_pos[1] + map_scroll[1] + (i.1 as f32) * map_zoom_level;
 					draw_list.add_image(
 						highlight_tile,
-						[i.0 as f32, i.1 as f32],
-						[(i.0 + 16) as f32, (i.1 + 16) as f32]
+						[x, y],
+						[x + map_zoom_level, y + map_zoom_level]
 					).build();
 				}
 			});

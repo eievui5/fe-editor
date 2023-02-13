@@ -6,6 +6,7 @@ const MAP_VIEWER_MARGIN: f32 = 32.0;
 const TILE_SELECTOR_MARGIN: f32 = 128.0;
 const EDITOR_LIST_Y: f32 = MAIN_MENU_HEIGHT + 4.0;
 const MOUSE_WHEEL_ZOOM_SPEED: f32 = 3.0;
+const KEYBOARD_ZOOM_SPEED: f32 = 32.0;
 
 const CURSOR_PNG: &[u8] = include_bytes!("cursor.png");
 
@@ -44,7 +45,7 @@ fn main() {
 	let mut unit_editor = UnitEditor::new();
 
 	system.main_loop(move |_, ui| {
-		let _delta = ui.io().delta_time;
+		let delta = ui.io().delta_time;
 
 		ui.main_menu_bar(|| {
 			ui.menu("File", || {
@@ -118,7 +119,12 @@ fn main() {
 					let mouse_drag_delta = ui.mouse_drag_delta_with_button(MouseButton::Middle);
 
 					let map_zoom_delta = map_zoom_level - (
-						map_zoom_level + ui.io().mouse_wheel * MOUSE_WHEEL_ZOOM_SPEED
+						map_zoom_level
+						// Enable zooming with mouse wheel...
+						+ ui.io().mouse_wheel * MOUSE_WHEEL_ZOOM_SPEED
+						// ...as well as the - and = (meaning +) keys.
+						+ if ui.is_key_down(Key::Equal) { KEYBOARD_ZOOM_SPEED * delta } else { 0.0 }
+						- if ui.is_key_down(Key::Minus) { KEYBOARD_ZOOM_SPEED * delta } else { 0.0 }
 					).clamp(16.0, 128.0);
 					map_zoom_level = map_zoom_level - map_zoom_delta;
 

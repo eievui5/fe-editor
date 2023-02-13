@@ -1,5 +1,4 @@
-use furry_emblem_editor::{register_texture_rgba, support};
-use furry_emblem_editor::{CustomUi, Facade, ItemEditor, UnitEditor};
+use furry_emblem_editor::*;
 use imgui::*;
 
 const MAIN_MENU_HEIGHT: f32 = 22.0;
@@ -7,6 +6,8 @@ const MAP_VIEWER_MARGIN: f32 = 32.0;
 const TILE_SELECTOR_MARGIN: f32 = 128.0;
 const EDITOR_LIST_Y: f32 = MAIN_MENU_HEIGHT + 4.0;
 const MOUSE_WHEEL_ZOOM_SPEED: f32 = 3.0;
+
+const CURSOR_PNG: &[u8] = include_bytes!("cursor.png");
 
 fn main() {
 	let mut system = support::init("Furry Emblem - Editor");
@@ -50,8 +51,14 @@ fn main() {
 			},
 			100,
 			100,
-		).unwrap()
+		).unwrap(),
 	];
+
+	let highlight_tile = register_image(
+		system.display.get_context(),
+		system.renderer.textures(),
+		&image::load_from_memory(CURSOR_PNG).unwrap(),
+	).unwrap();
 
 	let mut map_zoom_level: f32 = 64.0;
 	let mut map_scroll: [f32; 2] = [0.0, 0.0];
@@ -141,12 +148,17 @@ fn main() {
 
 				// Only handle input if the window is hovered.
 				if ui.is_window_hovered() {
-					let x = ((ui.io().mouse_pos[0] - map_scroll[0] - window_pos[0]) / map_zoom_level) as i32;
-					let y = ((ui.io().mouse_pos[1] - map_scroll[1] - window_pos[1]) / map_zoom_level) as i32;
+					let x = (ui.io().mouse_pos[0] - map_scroll[0] - window_pos[0]) / map_zoom_level;
+					let y = (ui.io().mouse_pos[1] - map_scroll[1] - window_pos[1]) / map_zoom_level;
 					let mouse_drag_delta = ui.mouse_drag_delta_with_button(MouseButton::Middle);
 
-					map_zoom_level += ui.io().mouse_wheel * MOUSE_WHEEL_ZOOM_SPEED;
-					map_zoom_level = map_zoom_level.clamp(16.0, 128.0);
+					let map_zoom_delta = map_zoom_level - (
+						map_zoom_level + ui.io().mouse_wheel * MOUSE_WHEEL_ZOOM_SPEED
+					).clamp(16.0, 128.0);
+					map_zoom_level = map_zoom_level - map_zoom_delta;
+
+					map_scroll[0] += x * map_zoom_delta;
+					map_scroll[1] += y * map_zoom_delta;
 
 					if mouse_drag_delta[0] != 0.0 && mouse_drag_delta[1] != 0.0 {
 						map_scroll[0] += mouse_drag_delta[0];
@@ -154,7 +166,7 @@ fn main() {
 						ui.reset_mouse_drag_delta(MouseButton::Middle);
 					}
 
-					if ui.is_key_down(Key::MouseLeft) && x >= 0 && y >= 0 {
+					if ui.is_key_down(Key::MouseLeft) && x >= 0.0 && y >= 0.0 {
 						let x = x as usize;
 						let y = y as usize;
 						if x < map[0].len() && y < map.len() {
@@ -163,15 +175,20 @@ fn main() {
 					}
 
 					if !ui.is_key_down(Key::MouseMiddle) {
-						let tx = (x as f32) * map_zoom_level
+						let tx = x.floor() * map_zoom_level
 							+ map_scroll[0]
 							+ window_pos[0];
-						let ty = (y as f32) * map_zoom_level
+						let ty = y.floor() * map_zoom_level
 							+ map_scroll[1]
 							+ window_pos[1];
 						// Draw a placement preview.
 						draw_list.add_image(
 							texture_atlas[selected_tile],
+							[tx, ty],
+							[tx + map_zoom_level, ty + map_zoom_level]
+						).build();
+						draw_list.add_image(
+							highlight_tile,
 							[tx, ty],
 							[tx + map_zoom_level, ty + map_zoom_level]
 						).build();
@@ -194,8 +211,17 @@ fn main() {
 			.no_decoration()
 			.build(|| {
 				for (i, texture) in texture_atlas.iter().enumerate() {
-					if ui.image_button(i.to_string(), *texture, [64.0, 64.0]) {
+					if ui.invisible_button(i.to_string(), [64.0, 64.0]) {
 						selected_tile = i;
+					}
+					let draw_list = ui.get_window_draw_list();
+					draw_list
+						.add_image(*texture, ui.item_rect_min(), ui.item_rect_max())
+						.build();
+					if selected_tile == i {
+						draw_list
+							.add_image(highlight_tile, ui.item_rect_min(), ui.item_rect_max())
+							.build();
 					}
 				}
 			});

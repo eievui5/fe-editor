@@ -7,8 +7,21 @@ const TILE_SELECTOR_MARGIN: f32 = 128.0;
 const EDITOR_LIST_Y: f32 = MAIN_MENU_HEIGHT + 4.0;
 const MOUSE_WHEEL_ZOOM_SPEED: f32 = 3.0;
 const KEYBOARD_ZOOM_SPEED: f32 = 32.0;
+const KEYBOARD_DRAG_SPEED: f32 = 1024.0;
 
 const CURSOR_PNG: &[u8] = include_bytes!("cursor.png");
+
+struct MapInfoPopup {
+	position: (u32, u32),
+}
+
+impl MapInfoPopup {
+	fn new() -> Self {
+		Self {
+			position: (0, 0),
+		}
+	}
+}
 
 fn main() {
 	let mut system = support::init("Furry Emblem - Editor");
@@ -40,6 +53,8 @@ fn main() {
 		vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 		vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 	];
+	let mut unit_list = Vec::<(u32, u32)>::new();
+	let mut info_popup = MapInfoPopup::new();
 
 	let mut item_editor = ItemEditor::new();
 	let mut unit_editor = UnitEditor::new();
@@ -130,6 +145,18 @@ fn main() {
 
 					map_scroll[0] += x * map_zoom_delta;
 					map_scroll[1] += y * map_zoom_delta;
+					if ui.is_key_down(Key::LeftArrow) {
+						map_scroll[0] += KEYBOARD_DRAG_SPEED * delta;
+					}
+					if ui.is_key_down(Key::RightArrow) {
+						map_scroll[0] -= KEYBOARD_DRAG_SPEED * delta;
+					}
+					if ui.is_key_down(Key::UpArrow) {
+						map_scroll[1] += KEYBOARD_DRAG_SPEED * delta;
+					}
+					if ui.is_key_down(Key::DownArrow) {
+						map_scroll[1] -= KEYBOARD_DRAG_SPEED * delta;
+					}
 
 					if mouse_drag_delta[0] != 0.0 && mouse_drag_delta[1] != 0.0 {
 						map_scroll[0] += mouse_drag_delta[0];
@@ -137,33 +164,55 @@ fn main() {
 						ui.reset_mouse_drag_delta(MouseButton::Middle);
 					}
 
-					if ui.is_key_down(Key::MouseLeft) && x >= 0.0 && y >= 0.0 {
-						let x = x as usize;
-						let y = y as usize;
-						if x < map[0].len() && y < map.len() {
-							map[y][x] = selected_tile;
+					// Only if the cursor is over the map.
+					if x >= 0.0 && y >= 0.0 && x < (map[0].len() as f32) && y < (map.len() as f32) {
+						if ui.is_key_down(Key::MouseLeft) {
+							map[y as usize][x as usize] = selected_tile;
+						}
+
+						if ui.is_key_down(Key::MouseRight) {
+							ui.open_popup("info");
+							info_popup.position = (x.floor() as u32, y.floor() as u32);
+						}
+
+						if !ui.is_key_down(Key::MouseMiddle) {
+							let tx = x.floor() * map_zoom_level
+								+ map_scroll[0]
+								+ window_pos[0];
+							let ty = y.floor() * map_zoom_level
+								+ map_scroll[1]
+								+ window_pos[1];
+							// Draw a placement preview.
+							draw_list.add_image(
+								texture_atlas[selected_tile],
+								[tx, ty],
+								[tx + map_zoom_level, ty + map_zoom_level]
+							).build();
+							draw_list.add_image(
+								highlight_tile,
+								[tx, ty],
+								[tx + map_zoom_level, ty + map_zoom_level]
+							).build();
 						}
 					}
+				}
 
-					if !ui.is_key_down(Key::MouseMiddle) {
-						let tx = x.floor() * map_zoom_level
-							+ map_scroll[0]
-							+ window_pos[0];
-						let ty = y.floor() * map_zoom_level
-							+ map_scroll[1]
-							+ window_pos[1];
-						// Draw a placement preview.
-						draw_list.add_image(
-							texture_atlas[selected_tile],
-							[tx, ty],
-							[tx + map_zoom_level, ty + map_zoom_level]
-						).build();
-						draw_list.add_image(
-							highlight_tile,
-							[tx, ty],
-							[tx + map_zoom_level, ty + map_zoom_level]
-						).build();
+				ui.popup("info", || {
+					if ui.button("Close") {
+						ui.close_current_popup();
 					}
+					if ui.button("Place Unit") {
+						unit_list.push(info_popup.position);
+					};
+					ui.button("Mark as spawn");
+				});
+
+				for i in &unit_list {
+					draw_list.add_image(
+						highlight_tile,
+						[i.0 as f32, i.1 as f32],
+						[(i.0 + 16) as f32, (i.1 + 16) as f32]
+					).build();
 				}
 			});
 

@@ -1,5 +1,6 @@
 mod custom_ui;
 mod items;
+mod map;
 mod texture_loader;
 mod units;
 
@@ -11,6 +12,7 @@ use uuid::Uuid;
 
 pub use custom_ui::*;
 pub use items::*;
+pub use map::*;
 pub use texture_loader::*;
 pub use units::*;
 

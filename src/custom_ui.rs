@@ -1,10 +1,27 @@
-use crate::ListItem;
-use crate::EditorList;
+use crate::*;
 use imgui::*;
+
+const MOUSE_WHEEL_ZOOM_SPEED: f32 = 3.0;
+const KEYBOARD_ZOOM_SPEED: f32 = 32.0;
+const KEYBOARD_DRAG_SPEED: f32 = 1024.0;
 
 pub trait CustomUi {
 	fn hover_tooltip(&self, message: &str);
 	fn editor_list<T: EditorList>(&self, editor: &mut T, hint: &str, position: (f32, f32));
+	fn tilemap(
+		&self,
+		map: &mut MapData,
+		texture_atlas: &Vec<TextureId>,
+		unit_icons: &Vec<TextureId>,
+		cursor_tile: TextureId,
+		selected_tile: usize,
+	);
+	fn tile_selector(
+		&self,
+		texture_atlas: &Vec<TextureId>,
+		selected_tile: usize,
+		highlight_tile: TextureId,
+	) -> usize;
 }
 
 impl CustomUi for Ui {
@@ -103,5 +120,193 @@ impl CustomUi for Ui {
 			});
 
 		*editor.is_shown() = is_shown;
+	}
+
+	fn tilemap(
+		&self,
+		map: &mut MapData,
+		texture_atlas: &Vec<TextureId>,
+		unit_icons: &Vec<TextureId>,
+		cursor_tile: TextureId,
+		selected_tile: usize,
+) {
+		let window_pos = self.window_pos();
+		let draw_list = self.get_window_draw_list();
+		let delta = self.io().delta_time;
+
+		for ty in 0..map.height {
+			for tx in 0..map.width {
+				let tile = *map.get_tile(tx, ty);
+				let x = (tx as f32) * map.zoom
+					+ map.scroll[0]
+					+ window_pos[0];
+				let y = (ty as f32) * map.zoom
+					+ map.scroll[1]
+					+ window_pos[1];
+				draw_list.add_image(
+					texture_atlas[tile],
+					[x, y],
+					[x + map.zoom, y + map.zoom]
+				).build();
+			}
+		}
+
+		// Only handle input if the window is hovered.
+		if self.is_window_hovered() {
+			let x = (self.io().mouse_pos[0] - map.scroll[0] - window_pos[0]) / map.zoom;
+			let y = (self.io().mouse_pos[1] - map.scroll[1] - window_pos[1]) / map.zoom;
+			let mouse_drag_delta = self.mouse_drag_delta_with_button(MouseButton::Middle);
+
+			let map_zoom_delta = map.zoom - (
+				map.zoom
+				// Enable zooming with mouse wheel...
+				+ self.io().mouse_wheel * MOUSE_WHEEL_ZOOM_SPEED
+				// ...as well as the - and = (meaning +) keys.
+				+ if self.is_key_down(Key::Equal) { KEYBOARD_ZOOM_SPEED * delta } else { 0.0 }
+				- if self.is_key_down(Key::Minus) { KEYBOARD_ZOOM_SPEED * delta } else { 0.0 }
+			).clamp(16.0, 128.0);
+			map.zoom = map.zoom - map_zoom_delta;
+
+			map.scroll[0] += x * map_zoom_delta;
+			map.scroll[1] += y * map_zoom_delta;
+			if self.is_key_down(Key::LeftArrow) {
+				map.scroll[0] += KEYBOARD_DRAG_SPEED * delta;
+			}
+			if self.is_key_down(Key::RightArrow) {
+				map.scroll[0] -= KEYBOARD_DRAG_SPEED * delta;
+			}
+			if self.is_key_down(Key::UpArrow) {
+				map.scroll[1] += KEYBOARD_DRAG_SPEED * delta;
+			}
+			if self.is_key_down(Key::DownArrow) {
+				map.scroll[1] -= KEYBOARD_DRAG_SPEED * delta;
+			}
+
+			if mouse_drag_delta[0] != 0.0 && mouse_drag_delta[1] != 0.0 {
+				map.scroll[0] += mouse_drag_delta[0];
+				map.scroll[1] += mouse_drag_delta[1];
+				self.reset_mouse_drag_delta(MouseButton::Middle);
+			}
+
+			// Only if the cursor is over the map.
+			if x >= 0.0 && y >= 0.0 && x < (map.width as f32) && y < (map.height as f32) {
+				if self.is_key_down(Key::MouseLeft) {
+					*map.get_tile(x.floor() as usize, y.floor() as usize) = selected_tile;
+				}
+
+				if self.is_key_down(Key::MouseRight) {
+					self.open_popup("info");
+					map.info_popup.position = (x.floor() as u32, y.floor() as u32);
+				}
+
+				if !self.is_key_down(Key::MouseMiddle) {
+					let tx = x.floor() * map.zoom
+						+ map.scroll[0]
+						+ window_pos[0];
+					let ty = y.floor() * map.zoom
+						+ map.scroll[1]
+						+ window_pos[1];
+					// Draw a placement preview.
+					draw_list.add_image(
+						texture_atlas[selected_tile],
+						[tx, ty],
+						[tx + map.zoom, ty + map.zoom]
+					).build();
+					draw_list.add_image(
+						cursor_tile,
+						[tx, ty],
+						[tx + map.zoom, ty + map.zoom]
+					).build();
+				}
+			}
+		}
+
+		self.popup("info", || {
+			self.text("Tile Attributes");
+			if self.button("Close") {
+				self.close_current_popup();
+			}
+			self.separator();
+
+			self.popup("class menu", || {
+				for i in 0..unit_icons.len() {
+					// Classes per row.
+					if i % 3 != 0 {
+						self.same_line();
+					}
+					if self.image_button(
+						i.to_string(),
+						unit_icons[i],
+						[32.0; 2]
+					) {
+					}
+				}
+			});
+
+			for (i, unit) in map.units.iter().enumerate() {
+				if (unit.x, unit.y) == map.info_popup.position {
+					self.text("Class:\n<NAME>");
+					self.same_line();
+					if self.image_button(
+						"Class selector",
+						unit_icons[unit.class.as_usize()],
+						[32.0; 2]
+					) {
+						self.open_popup("class menu");
+					}
+					self.hover_tooltip("Click to select class");
+					self.input_text("##name", &mut map.info_popup.unit)
+						.hint("Name (Optional)")
+						.build();
+					if self.button("Delete Unit") {
+						map.units.remove(i);
+						self.close_current_popup();
+					}
+					return;
+				}
+			}
+
+			if self.button("Place Unit") {
+				map.units.push(MapUnit::at_position(
+					map.info_popup.position.0,
+					map.info_popup.position.1,
+				))
+			};
+			self.button("Mark as spawn");
+		});
+
+		for i in &map.units {
+			let x = window_pos[0] + map.scroll[0] + (i.x as f32) * map.zoom;
+			let y = window_pos[1] + map.scroll[1] + (i.y as f32) * map.zoom;
+			draw_list.add_image(
+				unit_icons[0],
+				[x, y],
+				[x + map.zoom, y + map.zoom]
+			).build();
+		}
+	}
+
+	fn tile_selector(
+		&self,
+		texture_atlas: &Vec<TextureId>,
+		mut selected_tile: usize,
+		highlight_tile: TextureId,
+	) -> usize {
+		for (i, texture) in texture_atlas.iter().enumerate() {
+			if self.invisible_button(i.to_string(), [64.0, 64.0]) {
+				selected_tile = i;
+			}
+			let draw_list = self.get_window_draw_list();
+			draw_list
+				.add_image(*texture, self.item_rect_min(), self.item_rect_max())
+				.build();
+			if selected_tile == i {
+				draw_list
+					.add_image(highlight_tile, self.item_rect_min(), self.item_rect_max())
+					.build();
+			}
+		}
+
+		selected_tile
 	}
 }

@@ -1,5 +1,8 @@
 use crate::CustomUi;
 use imgui::*;
+use std::fs;
+use std::path::Path;
+use toml::*;
 use uuid::Uuid;
 
 pub trait ListItem {
@@ -188,6 +191,12 @@ impl ClassData {
 			is_open: true,
 		}
 	}
+
+	pub fn to_toml(&self) -> String {
+		let mut toml = format!("[\"{}\"]\n", self.name);
+		toml += &format!("desc = \"{}\"\n", self.desc);
+		toml
+	}
 }
 
 impl ListItem for ClassData {
@@ -227,6 +236,39 @@ impl ClassEditor {
 			search_field: String::new(),
 			default_texture,
 		}
+	}
+
+	pub fn open(path: impl AsRef<Path>, default_texture: TextureId) -> Self {
+		let mut classes = Vec::new();
+
+		if let Ok(toml) = fs::read_to_string(path) {
+			let class_table: Table = toml.parse().unwrap();
+			for (name, table) in class_table {
+				let mut class = ClassData::with_texture(default_texture);
+				class.name = name;
+				if let Value::String(desc) = &table["desc"] {
+					class.desc = desc.to_string()
+				}
+				classes.push(class);
+			}
+		}
+
+		Self {
+			unsaved: false,
+			is_shown: true,
+			classes,
+			search_field: String::new(),
+			default_texture,
+		}
+	}
+
+	pub fn to_toml(&self) -> String {
+		let mut toml = String::new();
+		for i in &self.classes {
+			toml += &i.to_toml();
+			toml += "\n";
+		}
+		toml
 	}
 }
 

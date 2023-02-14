@@ -1,6 +1,8 @@
+use std::fs;
 use furry_emblem_editor::*;
 use imgui::*;
 
+const AUTOSAVE_FREQUENCY: f32 = 2.0;
 const MAIN_MENU_HEIGHT: f32 = 22.0;
 const MAP_VIEWER_MARGIN: f32 = 32.0;
 const TILE_SELECTOR_MARGIN: f32 = 80.0;
@@ -12,6 +14,7 @@ fn main() {
 	let mut system = support::init("Furry Emblem - Editor");
 
 	let mut selected_tile = 0;
+	let mut autosave_timer = 0.0;
 
 	let texture_atlas = register_tileset(
 		system.display.get_context(),
@@ -35,19 +38,20 @@ fn main() {
 
 	let mut item_editor = ItemEditor::new();
 	let mut unit_editor = UnitEditor::new();
-	let mut class_editor = ClassEditor::with_texture(unit_icons[0]);
-	let mut map = MapData::with_size(15, 10);
+	let mut class_editor = ClassEditor::open("example/classes.toml", unit_icons[0]);
+	let mut map = MapData::with_size(20, 20);
 
 	system.main_loop(move |_, ui| {
 		let display_size = ui.io().display_size;
 
 		ui.main_menu_bar(|| {
 			ui.menu("File", || {
-				if ui.menu_item("Open") {
-					println!("Opening file");
+				ui.menu_item("New Project");
+				ui.menu_item("New Map");
+				ui.menu_item("Open Project");
+				if ui.menu_item("Save") {
+					fs::write("example/classes.toml", class_editor.to_toml()).unwrap();
 				}
-				ui.separator();
-				ui.menu_item("New...");
 			});
 			ui.menu("View", || {
 				ui.checkbox("Item editor", &mut item_editor.is_shown);
@@ -124,5 +128,11 @@ fn main() {
 		item_editor.items.retain(|i| i.is_open);
 		unit_editor.units.retain(|i| i.is_open);
 		class_editor.classes.retain(|i| i.is_open);
+		if autosave_timer > AUTOSAVE_FREQUENCY {
+			println!("Autosaving...");
+			fs::write("example/classes.toml", class_editor.to_toml()).unwrap();
+			autosave_timer -= AUTOSAVE_FREQUENCY;
+		}
+		autosave_timer += ui.io().delta_time;
 	});
 }

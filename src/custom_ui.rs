@@ -7,12 +7,18 @@ const KEYBOARD_DRAG_SPEED: f32 = 1024.0;
 
 pub trait CustomUi {
 	fn hover_tooltip(&self, message: &str);
-	fn editor_list<T: EditorList>(&self, editor: &mut T, hint: &str, position: (f32, f32));
+	fn editor_list<T: EditorList>(
+		&self,
+		editor: &mut T,
+		title: &str,
+		hint: &str,
+		position: (f32, f32)
+	);
 	fn tilemap(
 		&self,
 		map: &mut MapData,
 		texture_atlas: &Vec<TextureId>,
-		unit_icons: &Vec<TextureId>,
+		classes: &Vec<ClassData>,
 		cursor_tile: TextureId,
 		selected_tile: usize,
 	);
@@ -33,14 +39,20 @@ impl CustomUi for Ui {
 		}
 	}
 
-	fn editor_list<T: EditorList>(&self, editor: &mut T, hint: &str, position: (f32, f32)) {
+	fn editor_list<T: EditorList>(
+		&self,
+		editor: &mut T,
+		title: &str,
+		hint: &str,
+		position: (f32, f32)
+	) {
 		let mut is_shown = *editor.is_shown();
 
 		if !is_shown {
 			return;
 		}
 
-		self.window(&format!("{hint}s"))
+		self.window(title)
 			.opened(&mut is_shown)
 			.position([position.0, position.1], Condition::FirstUseEver)
 			.size([200.0, 400.0], Condition::FirstUseEver)
@@ -85,31 +97,7 @@ impl CustomUi for Ui {
 						// Open the item entry if the name is empty,
 						// since this means it's newly created; empty items can't be loaded from disk.
 						.opened(item.is_new(), Condition::FirstUseEver)
-						.build(|| {
-							item.editor(&self);
-
-							if self.button("Delete") {
-								self.open_popup("Delete");
-							}
-
-							if self.modal_popup_config("Delete").build(|| {
-								self.text_wrapped(&format!(
-									"Do you really want to delete \"{}\"?",
-									item.name()
-								));
-								if self.button("Cancel") {
-									self.close_current_popup();
-								}
-								self.same_line();
-								if self.button("Delete") {
-									self.close_current_popup();
-									return true;
-								}
-								false
-							}) == Some(true) {
-								item.close()
-							}
-						});
+						.build(|| item.editor(&self) );
 
 					self.separator();
 				}
@@ -126,10 +114,10 @@ impl CustomUi for Ui {
 		&self,
 		map: &mut MapData,
 		texture_atlas: &Vec<TextureId>,
-		unit_icons: &Vec<TextureId>,
+		classes: &Vec<ClassData>,
 		cursor_tile: TextureId,
 		selected_tile: usize,
-) {
+	) {
 		let window_pos = self.window_pos();
 		let draw_list = self.get_window_draw_list();
 		let delta = self.io().delta_time;
@@ -228,58 +216,80 @@ impl CustomUi for Ui {
 			}
 			self.separator();
 
+			let mut unit = None;
+			// This index is needed to remove the unit upon deletion.
+			let mut unit_index = None;
+			for (i, u) in map.units.iter_mut().enumerate() {
+				if (u.x, u.y) == map.info_popup.position {
+					unit = Some(u);
+					unit_index = Some(i);
+				}
+			}
+
 			self.popup("class menu", || {
-				for i in 0..unit_icons.len() {
+				for (i, class) in classes.iter().enumerate() {
 					// Classes per row.
 					if i % 3 != 0 {
 						self.same_line();
 					}
 					if self.image_button(
 						i.to_string(),
-						unit_icons[i],
+						class.texture_id,
 						[32.0; 2]
 					) {
+						let unit = unit
+							.as_mut()
+							.expect("No unit found but class popup is open");
+						unit.class = i
 					}
+					self.hover_tooltip(&class.name);
 				}
 			});
 
-			for (i, unit) in map.units.iter().enumerate() {
-				if (unit.x, unit.y) == map.info_popup.position {
-					self.text("Class:\n<NAME>");
-					self.same_line();
-					if self.image_button(
-						"Class selector",
-						unit_icons[unit.class.as_usize()],
-						[32.0; 2]
-					) {
-						self.open_popup("class menu");
-					}
-					self.hover_tooltip("Click to select class");
-					self.input_text("##name", &mut map.info_popup.unit)
-						.hint("Name (Optional)")
-						.build();
-					if self.button("Delete Unit") {
-						map.units.remove(i);
-						self.close_current_popup();
-					}
-					return;
+			if let Some(unit) = unit {
+				// Unit selected
+				self.text(&format!("Class:\n{}", classes[unit.class].name));
+				self.same_line();
+				if self.image_button(
+					"Class selector",
+					classes[unit.class].texture_id,
+					[32.0; 2]
+				) {
+					self.open_popup("class menu");
 				}
+				self.hover_tooltip("Click to select class");
+				self.input_text("##name", &mut map.info_popup.unit)
+					.hint("Name (Optional)")
+					.build();
+				if self.button("Delete Unit") {
+					map.units.remove(
+						unit_index
+							.expect("No unit found but unit editor is open.")
+					);
+					self.close_current_popup();
+				}
+			} else {
+				// Nothing selected
+				if self.button("Place Unit") && classes.len() > 0 {
+					let unit = MapUnit::at_position(
+						map.info_popup.position.0,
+						map.info_popup.position.1,
+					);
+					map.units.push(unit);
+				};
+				if classes.len() == 0 {
+					self.hover_tooltip("Cannot create unit: No classes are defined.");
+				}
+				self.button("Mark as spawn");
 			}
 
-			if self.button("Place Unit") {
-				map.units.push(MapUnit::at_position(
-					map.info_popup.position.0,
-					map.info_popup.position.1,
-				))
-			};
-			self.button("Mark as spawn");
 		});
 
 		for i in &map.units {
 			let x = window_pos[0] + map.scroll[0] + (i.x as f32) * map.zoom;
 			let y = window_pos[1] + map.scroll[1] + (i.y as f32) * map.zoom;
 			draw_list.add_image(
-				unit_icons[0],
+				classes[i.class].texture_id,
 				[x, y],
 				[x + map.zoom, y + map.zoom]
 			).build();

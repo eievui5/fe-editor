@@ -28,21 +28,6 @@ impl MapData {
 	}
 }
 
-/// I don't know why I made this an enum, but it's wrong and I need to fix it.
-#[derive(Copy, Clone)]
-pub enum UnitClass {
-	Debug = 0,
-}
-
-impl UnitClass {
-	pub fn as_usize(self) -> usize {
-		use UnitClass::*;
-		match self {
-			Debug => 0,
-		}
-	}
-}
-
 pub struct MapInfoPopup {
 	pub unit: String,
 	pub position: (u32, u32),
@@ -61,7 +46,7 @@ pub struct MapUnit {
 	pub x: u32,
 	pub y: u32,
 	pub name: String,
-	pub class: UnitClass,
+	pub class: usize,
 }
 
 impl MapUnit {
@@ -70,7 +55,7 @@ impl MapUnit {
 			x,
 			y,
 			name: String::new(),
-			class: UnitClass::Debug,
+			class: 0,
 		}
 	}
 }

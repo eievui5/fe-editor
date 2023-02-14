@@ -25,6 +25,8 @@ fn main() {
 		&image::load_from_memory(CURSOR_PNG).unwrap(),
 	).unwrap();
 
+	// In the future, class/unit icons should be loaded from some config file.
+	// Classes can be serialized in unit data as their names, since this is how users will identify them.
 	let unit_icons = register_tileset(
 		system.display.get_context(),
 		system.renderer.textures(),
@@ -33,6 +35,7 @@ fn main() {
 
 	let mut item_editor = ItemEditor::new();
 	let mut unit_editor = UnitEditor::new();
+	let mut class_editor = ClassEditor::with_texture(unit_icons[0]);
 	let mut map = MapData::with_size(15, 10);
 
 	system.main_loop(move |_, ui| {
@@ -49,6 +52,7 @@ fn main() {
 			ui.menu("View", || {
 				ui.checkbox("Item editor", &mut item_editor.is_shown);
 				ui.checkbox("Unit editor", &mut unit_editor.is_shown);
+				ui.checkbox("Class editor", &mut class_editor.is_shown);
 			});
 			ui.menu_item("Options");
 			ui.menu("Help", || {
@@ -59,14 +63,23 @@ fn main() {
 
 		ui.editor_list(
 			&mut item_editor,
+			"Items",
 			"Item",
 			(MAP_VIEWER_MARGIN, EDITOR_LIST_Y),
 		);
 
 		ui.editor_list(
 			&mut unit_editor,
+			"Units",
 			"Unit",
 			(MAP_VIEWER_MARGIN + 200.0, EDITOR_LIST_Y),
+		);
+
+		ui.editor_list(
+			&mut class_editor,
+			"Classes",
+			"Class",
+			(MAP_VIEWER_MARGIN + 200.0 * 2.0, EDITOR_LIST_Y),
 		);
 
 		ui.window("Map Editor")
@@ -83,7 +96,7 @@ fn main() {
 			.focus_on_appearing(false)
 			.no_decoration()
 			.build(|| {
-				ui.tilemap(&mut map, &texture_atlas, &unit_icons, cursor_tile, selected_tile)
+				ui.tilemap(&mut map, &texture_atlas, &class_editor.classes, cursor_tile, selected_tile)
 			});
 
 		ui.window("Tile Selector")
@@ -110,5 +123,6 @@ fn main() {
 		// End-of-frame cleanup
 		item_editor.items.retain(|i| i.is_open);
 		unit_editor.units.retain(|i| i.is_open);
+		class_editor.classes.retain(|i| i.is_open);
 	});
 }

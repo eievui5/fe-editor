@@ -54,16 +54,29 @@ fn main() {
 
 	system.main_loop(move |_, ui| {
 		let display_size = ui.io().display_size;
+		let save_path = "example/classes.toml";
+		let ctrl = if ui.io().config_mac_os_behaviors { "Cmd" } else { "Ctrl" };
 		// This is necessary to ensure that the popup is always opened from the root.
 		let mut show_warning = false;
+
+		if ui.io().key_ctrl && ui.is_key_pressed(Key::S) {
+			match save(save_path, &mut class_editor) {
+				Ok(_) => eprintln!("Saved class info"),
+				Err(err) => {
+					warning_message = format!("Failed to save class info: {err}");
+					eprintln!("{warning_message}");
+					show_warning = true;
+				}
+			}
+		}
 
 		ui.main_menu_bar(|| {
 			ui.menu("File", || {
 				ui.menu_item("New Project");
 				ui.menu_item("New Map");
 				ui.menu_item("Open Project");
-				if ui.menu_item("Save") {
-					match save("example/classes.toml", &mut class_editor) {
+				if ui.menu_item(&format!("Save ({ctrl} + S)")) {
+					match save(save_path, &mut class_editor) {
 						Ok(_) => eprintln!("Saved class info"),
 						Err(err) => {
 							warning_message = format!("Failed to save class info: {err}");

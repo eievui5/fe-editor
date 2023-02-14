@@ -1,4 +1,6 @@
+use std::error::Error;
 use std::fs;
+use std::path::Path;
 use furry_emblem_editor::*;
 use imgui::*;
 
@@ -9,6 +11,14 @@ const TILE_SELECTOR_MARGIN: f32 = 80.0;
 const EDITOR_LIST_Y: f32 = MAIN_MENU_HEIGHT + 4.0;
 
 const CURSOR_PNG: &[u8] = include_bytes!("cursor.png");
+
+fn save(path: impl AsRef<Path>, class_editor: &mut ClassEditor) -> Result<(), Box<dyn Error>> {
+	let toml = class_editor.to_toml()?;
+	fs::write(path, toml)?;
+	class_editor.unsaved = false;
+
+	Ok(())
+}
 
 fn main() {
 	let mut system = support::init("Furry Emblem - Editor");
@@ -40,9 +50,12 @@ fn main() {
 	let mut unit_editor = UnitEditor::new();
 	let mut class_editor = ClassEditor::open("example/classes.toml", unit_icons[0]);
 	let mut map = MapData::with_size(20, 20);
+	let mut warning_message = String::new();
 
 	system.main_loop(move |_, ui| {
 		let display_size = ui.io().display_size;
+		// This is necessary to ensure that the popup is always opened from the root.
+		let mut show_warning = false;
 
 		ui.main_menu_bar(|| {
 			ui.menu("File", || {
@@ -50,7 +63,14 @@ fn main() {
 				ui.menu_item("New Map");
 				ui.menu_item("Open Project");
 				if ui.menu_item("Save") {
-					fs::write("example/classes.toml", class_editor.to_toml()).unwrap();
+					match save("example/classes.toml", &mut class_editor) {
+						Ok(_) => eprintln!("Saved class info"),
+						Err(err) => {
+							warning_message = format!("Failed to save class info: {err}");
+							eprintln!("{warning_message}");
+							show_warning = true;
+						}
+					}
 				}
 			});
 			ui.menu("View", || {
@@ -129,10 +149,33 @@ fn main() {
 		unit_editor.units.retain(|i| i.is_open);
 		class_editor.classes.retain(|i| i.is_open);
 		if autosave_timer > AUTOSAVE_FREQUENCY {
-			println!("Autosaving...");
-			fs::write("example/classes.toml", class_editor.to_toml()).unwrap();
+			if class_editor.unsaved {
+				// TODO: In the future, autosaving and saving should be considered seperate actions.
+				// If autosaving fails, the "autosaved" flag should still be set,
+				// so that it isn't attempted again until a change is made that may fix it.
+				match save("example/classes.autosave.toml", &mut class_editor) {
+					Ok(_) => {
+						eprintln!("Autosaved class info");
+						class_editor.unsaved = false;
+					}
+					Err(err) => {
+						eprintln!("Failed to autosave class info: {err}");
+					}
+				}
+			}
 			autosave_timer -= AUTOSAVE_FREQUENCY;
 		}
 		autosave_timer += ui.io().delta_time;
+
+		if show_warning {
+			ui.open_popup("Warning!");
+		}
+
+		ui.modal_popup("Warning!", || {
+			ui.text(&warning_message);
+			if ui.button("Ok") {
+				ui.close_current_popup();
+			}
+		});
 	});
 }

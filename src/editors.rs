@@ -1,6 +1,7 @@
-use crate::CustomUi;
+use crate::{CustomUi, Error};
 use imgui::*;
 use std::fs;
+use std::hash::Hash;
 use std::path::Path;
 use toml::*;
 use uuid::Uuid;
@@ -14,17 +15,18 @@ pub trait ListItem {
 }
 
 pub trait EditorList {
-	type Item: ListItem;
+	type Item: ListItem + Hash;
 
 	fn entries(&self) -> &Vec<Self::Item>;
 	fn entries_mut(&mut self) -> &mut Vec<Self::Item>;
 	fn add_entry(&mut self);
-	fn has_changes(&self) -> bool;
+	fn unsaved(&mut self) -> &mut bool;
 	fn search(&self) -> &str;
 	fn search_mut(&mut self) -> &mut String;
 	fn is_shown(&mut self) -> &mut bool;
 }
 
+#[derive(Hash)]
 pub struct ItemData {
 	pub uuid: Uuid,
 	/// Display name
@@ -88,12 +90,13 @@ impl EditorList for ItemEditor {
 	fn entries(&self) -> &Vec<Self::Item> { &self.items }
 	fn entries_mut(&mut self) -> &mut Vec<Self::Item> { &mut self.items }
 	fn add_entry(&mut self) { self.items.push(ItemData::new()); }
-	fn has_changes(&self) -> bool { self.unsaved }
+	fn unsaved(&mut self) -> &mut bool { &mut self.unsaved }
 	fn search(&self) -> &str { &self.search_field }
 	fn search_mut(&mut self) -> &mut String { &mut self.search_field }
 	fn is_shown(&mut self) -> &mut bool { &mut self.is_shown }
 }
 
+#[derive(Hash)]
 pub struct UnitData {
 	pub uuid: Uuid,
 	/// Display name
@@ -165,12 +168,13 @@ impl EditorList for UnitEditor {
 	fn entries(&self) -> &Vec<Self::Item> { &self.units }
 	fn entries_mut(&mut self) -> &mut Vec<Self::Item> { &mut self.units }
 	fn add_entry(&mut self) { self.units.push(UnitData::new()); }
-	fn has_changes(&self) -> bool { self.unsaved }
+	fn unsaved(&mut self) -> &mut bool { &mut self.unsaved }
 	fn search(&self) -> &str { &self.search_field }
 	fn search_mut(&mut self) -> &mut String { &mut self.search_field }
 	fn is_shown(&mut self) -> &mut bool { &mut self.is_shown }
 }
 
+#[derive(Hash)]
 pub struct ClassData {
 	pub texture_id: TextureId,
 	// Data
@@ -192,10 +196,16 @@ impl ClassData {
 		}
 	}
 
-	pub fn to_toml(&self) -> String {
-		let mut toml = format!("[\"{}\"]\n", self.name);
-		toml += &format!("desc = \"{}\"\n", self.desc);
-		toml
+	pub fn to_toml(&self) -> Result<String, Error> {
+		if self.name.len() == 0 {
+			return Err(Error::from(
+				"A class has a blank name."
+			));
+		}
+
+		let mut toml = format!("[{:?}]\n", self.name);
+		toml += &format!("desc = {:?}\n", self.desc);
+		Ok(toml)
 	}
 }
 
@@ -262,13 +272,13 @@ impl ClassEditor {
 		}
 	}
 
-	pub fn to_toml(&self) -> String {
+	pub fn to_toml(&self) -> Result<String, Error> {
 		let mut toml = String::new();
 		for i in &self.classes {
-			toml += &i.to_toml();
+			toml += &i.to_toml()?;
 			toml += "\n";
 		}
-		toml
+		Ok(toml)
 	}
 }
 
@@ -280,7 +290,7 @@ impl EditorList for ClassEditor {
 	fn add_entry(&mut self) {
 		self.classes.push(ClassData::with_texture(self.default_texture));
 	}
-	fn has_changes(&self) -> bool { self.unsaved }
+	fn unsaved(&mut self) -> &mut bool { &mut self.unsaved }
 	fn search(&self) -> &str { &self.search_field }
 	fn search_mut(&mut self) -> &mut String { &mut self.search_field }
 	fn is_shown(&mut self) -> &mut bool { &mut self.is_shown }

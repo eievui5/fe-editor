@@ -1,5 +1,7 @@
 use crate::*;
 use imgui::*;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 const MOUSE_WHEEL_ZOOM_SPEED: f32 = 3.0;
 const KEYBOARD_ZOOM_SPEED: f32 = 32.0;
@@ -48,6 +50,11 @@ impl CustomUi for Ui {
 	) {
 		let mut is_shown = *editor.is_shown();
 
+		// Track any changes that occur during this frame.
+		let mut editor_hash = DefaultHasher::new();
+		editor.entries().hash(&mut editor_hash);
+		let editor_hash = editor_hash.finish();
+
 		if !is_shown {
 			return;
 		}
@@ -59,7 +66,7 @@ impl CustomUi for Ui {
 			.menu_bar(true)
 			.focus_on_appearing(false)
 			.collapsed(true, Condition::FirstUseEver)
-			.unsaved_document(editor.has_changes())
+			.unsaved_document(*editor.unsaved())
 			.build(|| {
 				self.menu_bar(|| {
 					self.menu_item("Save");
@@ -97,7 +104,30 @@ impl CustomUi for Ui {
 						// Open the item entry if the name is empty,
 						// since this means it's newly created; empty items can't be loaded from disk.
 						.opened(item.is_new(), Condition::FirstUseEver)
-						.build(|| item.editor(&self) );
+						.build(|| {
+							item.editor(&self);
+							if self.button("Delete") {
+								self.open_popup("Delete");
+							}
+
+							if self.modal_popup_config("Delete").build(|| {
+								self.text(&format!(
+									"Do you really want to delete \"{}\"?",
+									item.name()
+								));
+								if self.button("Cancel") {
+									self.close_current_popup();
+								}
+								self.same_line();
+								if self.button("Delete") {
+									self.close_current_popup();
+									return true;
+								}
+								false
+							}) == Some(true) {
+								item.close()
+							}
+						});
 
 					self.separator();
 				}
@@ -107,7 +137,14 @@ impl CustomUi for Ui {
 				}
 			});
 
+		let mut current_hash = DefaultHasher::new();
+		editor.entries().hash(&mut current_hash);
+		let current_hash = current_hash.finish();
+
 		*editor.is_shown() = is_shown;
+		if !*editor.unsaved() {
+			*editor.unsaved() = editor_hash != current_hash;
+		}
 	}
 
 	fn tilemap(

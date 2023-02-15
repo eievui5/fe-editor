@@ -80,9 +80,8 @@ fn main() {
 	system.main_loop(move |_, ui| {
 		let display_size = ui.io().display_size;
 		let ctrl = if ui.io().config_mac_os_behaviors { "Cmd" } else { "Ctrl" };
-		// This is necessary to ensure that the popup is always opened from the root.
-		let mut show_warning = false;
-		let mut show_select_map = false;
+		let mut warning_popup = PopupCapsule::new();
+		let mut open_map_popup = PopupCapsule::new();
 		// for the sake of not repeating save code:
 		let mut manual_save = false;
 
@@ -92,7 +91,7 @@ fn main() {
 					map_editor = Some(MapEditor::with_size(15, 10));
 				}
 				if ui.menu_item("Open Map") {
-					show_select_map = true;
+					open_map_popup.open();
 					open_path = String::new();
 				}
 				if ui.menu_item(&format!("Save ({ctrl} + S)")) {
@@ -211,20 +210,12 @@ fn main() {
 				Err(err) => {
 					warning_message = format!("Save failed: {err}");
 					eprintln!("{warning_message}");
-					show_warning = true;
+					warning_popup.open();
 				}
 			}
 		}
 
-		if show_select_map {
-			ui.open_popup("Select Map");
-		}
-
-		if show_warning {
-			ui.open_popup("Warning!");
-		}
-
-		ui.modal_popup("Select Map", || {
+		open_map_popup.try_modal(&ui, "Select Map", || {
 			ui.text("Select a map by path (I'll make a menu soon)");
 			ui.input_text("##input", &mut open_path).build();
 			if ui.button("Cancel") {
@@ -237,7 +228,7 @@ fn main() {
 			}
 		});
 
-		ui.modal_popup("Warning!", || {
+		warning_popup.try_modal(&ui, "Warning!", || {
 			ui.text(&warning_message);
 			if ui.button("Ok") {
 				ui.close_current_popup();

@@ -320,7 +320,7 @@ impl CustomUi for Ui {
 					self.open_popup("class menu");
 				}
 				self.hover_tooltip("Click to select class");
-				self.input_text("##name", &mut map.info_popup.unit)
+				self.input_text("##name", &mut unit.name)
 					.hint("Name (Optional)")
 					.build();
 				if self.button("Delete Unit") {

@@ -41,6 +41,10 @@ impl MapEditor {
 				unwrap_toml!($table, $key, Integer, "integer")
 			};
 
+			($table:ident[$key:literal] as String) => {
+				unwrap_toml!($table, $key, String, "string")
+			};
+
 			($table:ident[$key:literal] as Array) => {
 				unwrap_toml!($table, $key, Array, "array")
 			};
@@ -62,6 +66,29 @@ impl MapEditor {
 		for i in unwrap_toml!(table["data"] as Array) {
 			if let Value::Integer(id) = i {
 				data.push(*id as usize);
+			} else {
+				Err(FeError::from(format!(
+					"Failed to read {}: non-integer value in `data`",
+					map_path.display()
+				)))?
+			}
+		}
+
+		let mut units = Vec::new();
+		for i in unwrap_toml!(table["units"] as Array) {
+			if let Value::Table(i) = i {
+				let unit = MapUnit {
+					x: *unwrap_toml!(i["x"] as Integer) as u32,
+					y: *unwrap_toml!(i["y"] as Integer) as u32,
+					name: unwrap_toml!(i["name"] as String).clone(),
+					class: *unwrap_toml!(i["class"] as Integer) as usize,
+				};
+				units.push(unit);
+			} else {
+				Err(FeError::from(format!(
+					"Failed to read {}: non-dict value in `units`",
+					map_path.display()
+				)))?
 			}
 		}
 
@@ -70,8 +97,7 @@ impl MapEditor {
 			width,
 			height,
 			data,
-			// TODO: load this
-			units: Vec::new(),
+			units,
 			// UI stuff
 			scroll: [0.0, 0.0],
 			zoom: 64.0,
@@ -103,6 +129,9 @@ impl MapEditor {
 		writeln!(toml, "width = {}", self.width)?;
 		writeln!(toml, "height = {}", self.height)?;
 		writeln!(toml, "data = {:?}", self.data)?;
+		for i in &self.units {
+			writeln!(toml, "{}", i.to_toml_dict()?)?;
+		}
 		Ok(toml)
 	}
 }
@@ -136,5 +165,15 @@ impl MapUnit {
 			name: String::new(),
 			class: 0,
 		}
+	}
+
+	pub fn to_toml_dict(&self) -> Result<String, Box<dyn Error>> {
+		let mut toml = String::new();
+		writeln!(toml, "[[units]]")?;
+		writeln!(toml, "x = {}", self.x)?;
+		writeln!(toml, "y = {}", self.y)?;
+		writeln!(toml, "name = {:?}", self.name)?;
+		writeln!(toml, "class = {}", self.class)?;
+		Ok(toml)
 	}
 }

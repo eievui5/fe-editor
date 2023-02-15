@@ -1,6 +1,6 @@
 #![feature(path_file_prefix)]
 
-use furry_emblem_editor::*;
+use fe_editor::*;
 use imgui::*;
 use std::env;
 use std::error::Error;

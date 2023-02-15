@@ -1,4 +1,4 @@
-use crate::{CustomUi, Error};
+use crate::*;
 use imgui::*;
 use std::fs;
 use std::hash::Hash;
@@ -196,9 +196,9 @@ impl ClassData {
 		}
 	}
 
-	pub fn to_toml(&self) -> Result<String, Error> {
+	pub fn to_toml(&self) -> Result<String, FeError> {
 		if self.name.len() == 0 {
-			return Err(Error::from(
+			return Err(FeError::from(
 				"A class has a blank name."
 			));
 		}
@@ -272,7 +272,7 @@ impl ClassEditor {
 		}
 	}
 
-	pub fn to_toml(&self) -> Result<String, Error> {
+	pub fn to_toml(&self) -> Result<String, FeError> {
 		let mut toml = String::new();
 		for i in &self.classes {
 			toml += &i.to_toml()?;

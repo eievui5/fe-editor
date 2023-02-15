@@ -184,8 +184,8 @@ impl CustomUi for Ui {
 		let draw_list = self.get_window_draw_list();
 		let delta = self.io().delta_time;
 
-		for ty in 0..map.height {
-			for tx in 0..map.width {
+		for ty in 0..map.data.height {
+			for tx in 0..map.data.width {
 				let tile = *map.get_tile(tx, ty);
 				let x = (tx as f32) * map.zoom
 					+ map.scroll[0]
@@ -239,7 +239,7 @@ impl CustomUi for Ui {
 			}
 
 			// Only if the cursor is over the map.
-			if x >= 0.0 && y >= 0.0 && x < (map.width as f32) && y < (map.height as f32) {
+			if x >= 0.0 && y >= 0.0 && x < (map.data.width as f32) && y < (map.data.height as f32) {
 				if self.is_key_down(Key::MouseLeft) {
 					*map.get_tile(x.floor() as usize, y.floor() as usize) = selected_tile;
 				}
@@ -281,7 +281,7 @@ impl CustomUi for Ui {
 			let mut unit = None;
 			// This index is needed to remove the unit upon deletion.
 			let mut unit_index = 0;
-			for (i, u) in map.units.iter_mut().enumerate() {
+			for (i, u) in map.data.units.iter_mut().enumerate() {
 				if (u.x, u.y) == map.info_popup.position {
 					unit = Some(u);
 					unit_index = i;
@@ -289,7 +289,7 @@ impl CustomUi for Ui {
 			}
 
 			let mut spawnpoint_index = None;
-			for (i, u) in map.spawns.iter_mut().enumerate() {
+			for (i, u) in map.data.spawns.iter_mut().enumerate() {
 				if *u == map.info_popup.position {
 					spawnpoint_index = Some(i);
 				}
@@ -331,13 +331,13 @@ impl CustomUi for Ui {
 					.hint("Name (Optional)")
 					.build();
 				if self.button("Delete Unit") {
-					map.units.remove(unit_index);
+					map.data.units.remove(unit_index);
 					self.close_current_popup();
 				}
 			} else if let Some(spawnpoint_index) = spawnpoint_index {
 				// Spawnpoint selected
 				if self.button("Delete Spawn") {
-					map.spawns.remove(spawnpoint_index);
+					map.data.spawns.remove(spawnpoint_index);
 					self.close_current_popup();
 				}
 			} else {
@@ -347,20 +347,20 @@ impl CustomUi for Ui {
 						map.info_popup.position.0,
 						map.info_popup.position.1,
 					);
-					map.units.push(unit);
+					map.data.units.push(unit);
 				};
 				if classes.len() == 0 {
 					self.hover_tooltip("Cannot create unit: No classes are defined.");
 				}
 				if self.button("Mark as spawn") {
-					map.spawns.push(map.info_popup.position);
+					map.data.spawns.push(map.info_popup.position);
 					self.close_current_popup();
 				}
 			}
 
 		});
 
-		for i in &map.units {
+		for i in &map.data.units {
 			let x = window_pos[0] + map.scroll[0] + (i.x as f32) * map.zoom;
 			let y = window_pos[1] + map.scroll[1] + (i.y as f32) * map.zoom;
 			draw_list.add_image(
@@ -370,7 +370,7 @@ impl CustomUi for Ui {
 			).build();
 		}
 
-		for i in &map.spawns {
+		for i in &map.data.spawns {
 			let x = window_pos[0] + map.scroll[0] + (i.0 as f32) * map.zoom;
 			let y = window_pos[1] + map.scroll[1] + (i.1 as f32) * map.zoom;
 			draw_list.add_image(

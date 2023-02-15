@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 clipboard = "0.5.0"
+fe-data = { path = "fe-data/" }
 glium = "0.32.1"
 image = { version = "0.24.5", features = ["png"] }
 imgui = "0.10.0"

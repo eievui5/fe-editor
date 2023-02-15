@@ -437,6 +437,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fe-data"
+version = "0.1.0"
+dependencies = [
+ "toml",
+]
+
+[[package]]
 name = "flate2"
 version = "1.0.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -534,6 +541,7 @@ name = "furry-emblem-editor"
 version = "0.1.0"
 dependencies = [
  "clipboard",
+ "fe-data",
  "glium",
  "image",
  "imgui",

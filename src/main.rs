@@ -53,9 +53,9 @@ fn save(
 		maps_path.push(&path);
 		maps_path.push("maps");
 		fs::create_dir_all(&maps_path)?;
-		maps_path.push(&map_editor.name);
+		maps_path.push(&map_editor.data.name);
 		maps_path.set_extension("toml");
-		let toml = map_editor.to_toml()?;
+		let toml = map_editor.data.to_toml()?;
 		fs::write(maps_path, toml)?;
 	}
 
@@ -67,7 +67,7 @@ fn main() {
 
 	let mut selected_tile = 0;
 	let mut autosave_timer = 0.0;
-	let save_path = PathBuf::from("example/");
+	let save_path = PathBuf::from(".");
 	let maps_path: PathBuf = [&*save_path.to_string_lossy(), "maps"]
 		.iter()
 		.collect();
@@ -75,7 +75,7 @@ fn main() {
 	let texture_atlas = register_tileset(
 		system.display.get_context(),
 		system.renderer.textures(),
-		&image::open("example/tree_tiles.png").unwrap(),
+		&image::open("tileset.png").unwrap(),
 	).unwrap();
 
 	let cursor_tile = register_image(
@@ -89,7 +89,7 @@ fn main() {
 	let unit_icons = register_tileset(
 		system.display.get_context(),
 		system.renderer.textures(),
-		&image::open("example/unit-icons.png").unwrap(),
+		&image::open("class-icons.png").unwrap(),
 	).unwrap();
 
 	// Editors

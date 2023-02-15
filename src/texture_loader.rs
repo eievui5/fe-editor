@@ -1,11 +1,12 @@
+use fe_data::FeError;
+use glium::Texture2d;
+use glium::backend::Facade;
+use glium::texture::{ClientFormat, RawImage2d};
+use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter, SamplerBehavior};
 use image::{GenericImageView, Pixel, Rgba};
 use imgui::{TextureId, Textures};
 use imgui_glium_renderer::Texture;
 use std::{borrow::Cow, error::Error, path::Path, rc::Rc};
-use glium::Texture2d;
-use glium::texture::{ClientFormat, RawImage2d};
-use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter, SamplerBehavior};
-use glium::backend::Facade;
 
 const TILE_SIZE: u32 = 16;
 
@@ -32,7 +33,7 @@ pub fn register_tileset<F, I: GenericImageView<Pixel=Rgba<u8>>>(
 	let mut ids = Vec::new();
 
 	if image.width() % TILE_SIZE != 0 || image.height() % TILE_SIZE != 0 {
-		return Err(Box::from(crate::Error { msg: format!(
+		return Err(Box::from(FeError { msg: format!(
 			"Image width or height is not a multiple of {TILE_SIZE}."
 		)}));
 	}

@@ -18,7 +18,7 @@ pub trait CustomUi {
 	);
 	fn tilemap(
 		&self,
-		map: &mut MapData,
+		map: &mut MapEditor,
 		texture_atlas: &Vec<TextureId>,
 		classes: &Vec<ClassData>,
 		cursor_tile: TextureId,
@@ -149,7 +149,7 @@ impl CustomUi for Ui {
 
 	fn tilemap(
 		&self,
-		map: &mut MapData,
+		map: &mut MapEditor,
 		texture_atlas: &Vec<TextureId>,
 		classes: &Vec<ClassData>,
 		cursor_tile: TextureId,

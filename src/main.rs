@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use furry_emblem_editor::*;
 use imgui::*;
 
@@ -12,10 +12,29 @@ const EDITOR_LIST_Y: f32 = MAIN_MENU_HEIGHT + 4.0;
 
 const CURSOR_PNG: &[u8] = include_bytes!("cursor.png");
 
-fn save(path: impl AsRef<Path>, class_editor: &mut ClassEditor) -> Result<(), Box<dyn Error>> {
+fn save(
+	path: impl AsRef<Path>,
+	class_editor: &mut ClassEditor,
+	map_editor: &mut Option<MapEditor>,
+) -> Result<(), Box<dyn Error>> {
+	// This seems strange...
+	let path: PathBuf = [path].iter().collect();
+	fs::create_dir_all(&path)?;
+
 	let toml = class_editor.to_toml()?;
-	fs::write(path, toml)?;
+	fs::write(
+		[path.clone(), "classes.toml".into()].iter().collect::<PathBuf>(),
+		toml
+	)?;
 	class_editor.unsaved = false;
+
+	if let Some(map_editor) = map_editor {
+		let toml = map_editor.to_toml()?;
+		fs::write(
+			[path.clone(), "map.toml".into()].iter().collect::<PathBuf>(),
+			toml
+		)?;
+	}
 
 	Ok(())
 }
@@ -25,6 +44,7 @@ fn main() {
 
 	let mut selected_tile = 0;
 	let mut autosave_timer = 0.0;
+	let save_path = PathBuf::from("example/");
 
 	let texture_atlas = register_tileset(
 		system.display.get_context(),
@@ -48,42 +68,35 @@ fn main() {
 
 	let mut item_editor = ItemEditor::new();
 	let mut unit_editor = UnitEditor::new();
-	let mut class_editor = ClassEditor::open("example/classes.toml", unit_icons[0]);
-	let mut map = MapData::with_size(20, 20);
+	let mut class_editor = ClassEditor::open(
+		[save_path.clone(), "classes.toml".into()].iter().collect::<PathBuf>(),
+		unit_icons[0]
+	);
+	let mut map_editor: Option<MapEditor> = None;
+
 	let mut warning_message = String::new();
+	let mut open_path = String::new();
 
 	system.main_loop(move |_, ui| {
 		let display_size = ui.io().display_size;
-		let save_path = "example/classes.toml";
 		let ctrl = if ui.io().config_mac_os_behaviors { "Cmd" } else { "Ctrl" };
 		// This is necessary to ensure that the popup is always opened from the root.
 		let mut show_warning = false;
-
-		if ui.io().key_ctrl && ui.is_key_pressed(Key::S) {
-			match save(save_path, &mut class_editor) {
-				Ok(_) => eprintln!("Saved class info"),
-				Err(err) => {
-					warning_message = format!("Failed to save class info: {err}");
-					eprintln!("{warning_message}");
-					show_warning = true;
-				}
-			}
-		}
+		let mut show_select_map = false;
+		// for the sake of not repeating save code:
+		let mut manual_save = false;
 
 		ui.main_menu_bar(|| {
 			ui.menu("File", || {
-				ui.menu_item("New Project");
-				ui.menu_item("New Map");
-				ui.menu_item("Open Project");
+				if ui.menu_item("New Map") {
+					map_editor = Some(MapEditor::with_size(15, 10));
+				}
+				if ui.menu_item("Open Map") {
+					show_select_map = true;
+					open_path = String::new();
+				}
 				if ui.menu_item(&format!("Save ({ctrl} + S)")) {
-					match save(save_path, &mut class_editor) {
-						Ok(_) => eprintln!("Saved class info"),
-						Err(err) => {
-							warning_message = format!("Failed to save class info: {err}");
-							eprintln!("{warning_message}");
-							show_warning = true;
-						}
-					}
+					manual_save = true;
 				}
 			});
 			ui.menu("View", || {
@@ -119,43 +132,45 @@ fn main() {
 			(MAP_VIEWER_MARGIN + 200.0 * 2.0, EDITOR_LIST_Y),
 		);
 
-		ui.window("Map Editor")
-			.size(
-				[display_size[0] - TILE_SELECTOR_MARGIN, display_size[0] - MAIN_MENU_HEIGHT],
-				Condition::Always,
-			)
-			.position(
-				[0.0, MAIN_MENU_HEIGHT],
-				Condition::Always,
-			)
-			.movable(false)
-			.bring_to_front_on_focus(false)
-			.focus_on_appearing(false)
-			.no_decoration()
-			.build(|| {
-				ui.tilemap(&mut map, &texture_atlas, &class_editor.classes, cursor_tile, selected_tile)
-			});
+		if let Some(mut map_editor) = map_editor.as_mut() {
+			ui.window("Map Editor")
+				.size(
+					[display_size[0] - TILE_SELECTOR_MARGIN, display_size[0] - MAIN_MENU_HEIGHT],
+					Condition::Always,
+				)
+				.position(
+					[0.0, MAIN_MENU_HEIGHT],
+					Condition::Always,
+				)
+				.movable(false)
+				.bring_to_front_on_focus(false)
+				.focus_on_appearing(false)
+				.no_decoration()
+				.build(|| {
+					ui.tilemap(&mut map_editor, &texture_atlas, &class_editor.classes, cursor_tile, selected_tile)
+				});
 
-		ui.window("Tile Selector")
-			.size(
-				[TILE_SELECTOR_MARGIN, display_size[0] - MAIN_MENU_HEIGHT],
-				Condition::Always,
-			)
-			.position(
-				[display_size[0] - TILE_SELECTOR_MARGIN, MAIN_MENU_HEIGHT],
-				Condition::Always,
-			)
-			.movable(false)
-			.bring_to_front_on_focus(false)
-			.focus_on_appearing(false)
-			.no_decoration()
-			.build(|| {
-				selected_tile = ui.tile_selector(
-					&texture_atlas,
-					selected_tile,
-					cursor_tile,
-				);
-			});
+			ui.window("Tile Selector")
+				.size(
+					[TILE_SELECTOR_MARGIN, display_size[0] - MAIN_MENU_HEIGHT],
+					Condition::Always,
+				)
+				.position(
+					[display_size[0] - TILE_SELECTOR_MARGIN, MAIN_MENU_HEIGHT],
+					Condition::Always,
+				)
+				.movable(false)
+				.bring_to_front_on_focus(false)
+				.focus_on_appearing(false)
+				.no_decoration()
+				.build(|| {
+					selected_tile = ui.tile_selector(
+						&texture_atlas,
+						selected_tile,
+						cursor_tile,
+					);
+				});
+		}
 
 		// End-of-frame cleanup
 		item_editor.items.retain(|i| i.is_open);
@@ -166,13 +181,19 @@ fn main() {
 				// TODO: In the future, autosaving and saving should be considered seperate actions.
 				// If autosaving fails, the "autosaved" flag should still be set,
 				// so that it isn't attempted again until a change is made that may fix it.
-				match save("example/classes.autosave.toml", &mut class_editor) {
+				let mut autosave_dir = save_path.clone();
+				autosave_dir.push("autosave/");
+				match save(
+					autosave_dir,
+					&mut class_editor,
+					&mut map_editor,
+				) {
 					Ok(_) => {
-						eprintln!("Autosaved class info");
+						eprintln!("Autosaved");
 						class_editor.unsaved = false;
 					}
 					Err(err) => {
-						eprintln!("Failed to autosave class info: {err}");
+						eprintln!("Autosave failed: {err}");
 					}
 				}
 			}
@@ -180,9 +201,41 @@ fn main() {
 		}
 		autosave_timer += ui.io().delta_time;
 
+		if manual_save || ui.io().key_ctrl && ui.is_key_pressed(Key::S) {
+			match save(
+				&save_path,
+				&mut class_editor,
+				&mut map_editor,
+			) {
+				Ok(_) => eprintln!("Saved"),
+				Err(err) => {
+					warning_message = format!("Save failed: {err}");
+					eprintln!("{warning_message}");
+					show_warning = true;
+				}
+			}
+		}
+
+		if show_select_map {
+			ui.open_popup("Select Map");
+		}
+
 		if show_warning {
 			ui.open_popup("Warning!");
 		}
+
+		ui.modal_popup("Select Map", || {
+			ui.text("Select a map by path (I'll make a menu soon)");
+			ui.input_text("##input", &mut open_path).build();
+			if ui.button("Cancel") {
+				ui.close_current_popup();
+			}
+			ui.same_line();
+			if ui.button("Open") {
+				map_editor = Some(MapEditor::open(&open_path).unwrap());
+				ui.close_current_popup();
+			}
+		});
 
 		ui.modal_popup("Warning!", || {
 			ui.text(&warning_message);

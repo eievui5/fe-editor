@@ -280,11 +280,18 @@ impl CustomUi for Ui {
 
 			let mut unit = None;
 			// This index is needed to remove the unit upon deletion.
-			let mut unit_index = None;
+			let mut unit_index = 0;
 			for (i, u) in map.units.iter_mut().enumerate() {
 				if (u.x, u.y) == map.info_popup.position {
 					unit = Some(u);
-					unit_index = Some(i);
+					unit_index = i;
+				}
+			}
+
+			let mut spawnpoint_index = None;
+			for (i, u) in map.spawns.iter_mut().enumerate() {
+				if *u == map.info_popup.position {
+					spawnpoint_index = Some(i);
 				}
 			}
 
@@ -324,10 +331,13 @@ impl CustomUi for Ui {
 					.hint("Name (Optional)")
 					.build();
 				if self.button("Delete Unit") {
-					map.units.remove(
-						unit_index
-							.expect("No unit found but unit editor is open.")
-					);
+					map.units.remove(unit_index);
+					self.close_current_popup();
+				}
+			} else if let Some(spawnpoint_index) = spawnpoint_index {
+				// Spawnpoint selected
+				if self.button("Delete Spawn") {
+					map.spawns.remove(spawnpoint_index);
 					self.close_current_popup();
 				}
 			} else {
@@ -342,7 +352,10 @@ impl CustomUi for Ui {
 				if classes.len() == 0 {
 					self.hover_tooltip("Cannot create unit: No classes are defined.");
 				}
-				self.button("Mark as spawn");
+				if self.button("Mark as spawn") {
+					map.spawns.push(map.info_popup.position);
+					self.close_current_popup();
+				}
 			}
 
 		});
@@ -352,6 +365,16 @@ impl CustomUi for Ui {
 			let y = window_pos[1] + map.scroll[1] + (i.y as f32) * map.zoom;
 			draw_list.add_image(
 				classes[i.class].texture_id,
+				[x, y],
+				[x + map.zoom, y + map.zoom]
+			).build();
+		}
+
+		for i in &map.spawns {
+			let x = window_pos[0] + map.scroll[0] + (i.0 as f32) * map.zoom;
+			let y = window_pos[1] + map.scroll[1] + (i.1 as f32) * map.zoom;
+			draw_list.add_image(
+				cursor_tile,
 				[x, y],
 				[x + map.zoom, y + map.zoom]
 			).build();

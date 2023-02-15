@@ -12,6 +12,7 @@ pub struct MapEditor {
 	pub height: usize,
 	data: Vec<usize>,
 	pub units: Vec<MapUnit>,
+	pub spawns: Vec<(u32, u32)>,
 	// UI fields
 	pub scroll: [f32; 2],
 	pub zoom: f32,
@@ -92,12 +93,28 @@ impl MapEditor {
 			}
 		}
 
+		let mut spawns = Vec::new();
+		for i in unwrap_toml!(table["spawns"] as Array) {
+			if let Value::Table(i) = i {
+				spawns.push((
+					*unwrap_toml!(i["x"] as Integer) as u32,
+					*unwrap_toml!(i["y"] as Integer) as u32,
+				));
+			} else {
+				Err(FeError::from(format!(
+					"Failed to read {}: non-dict value in `spawns`",
+					map_path.display()
+				)))?
+			}
+		}
+
 		Ok(Self {
 			name,
 			width,
 			height,
 			data,
 			units,
+			spawns,
 			// UI stuff
 			scroll: [0.0, 0.0],
 			zoom: 64.0,
@@ -113,9 +130,10 @@ impl MapEditor {
 			width,
 			height,
 			data,
+			units: Vec::new(),
+			spawns: Vec::new(),
 			scroll: [0.0, 0.0],
 			zoom: 64.0,
-			units: Vec::new(),
 			info_popup: MapInfoPopup::new(),
 		}
 	}
@@ -129,9 +147,19 @@ impl MapEditor {
 		writeln!(toml, "width = {}", self.width)?;
 		writeln!(toml, "height = {}", self.height)?;
 		writeln!(toml, "data = {:?}", self.data)?;
+
+		writeln!(toml, "units = [")?;
 		for i in &self.units {
-			writeln!(toml, "{}", i.to_toml_dict()?)?;
+			writeln!(toml, "\t{{{}}},", i.to_toml_dict()?)?;
 		}
+		writeln!(toml, "]")?;
+
+		writeln!(toml, "spawns = [")?;
+		for i in &self.spawns {
+			writeln!(toml, "\t{{x = {}, y = {}}}", i.0, i.1)?;
+		}
+		writeln!(toml, "]")?;
+
 		Ok(toml)
 	}
 }
@@ -169,11 +197,11 @@ impl MapUnit {
 
 	pub fn to_toml_dict(&self) -> Result<String, Box<dyn Error>> {
 		let mut toml = String::new();
-		writeln!(toml, "[[units]]")?;
-		writeln!(toml, "x = {}", self.x)?;
-		writeln!(toml, "y = {}", self.y)?;
-		writeln!(toml, "name = {:?}", self.name)?;
-		writeln!(toml, "class = {}", self.class)?;
+		write!(toml, "x = {}, ", self.x)?;
+		write!(toml, "y = {}, ", self.y)?;
+		write!(toml, "name = {:?}, ", self.name)?;
+		// MAKE SURE LAST FIELD HAS NO COMMA!!!
+		write!(toml, "class = {}", self.class)?;
 		Ok(toml)
 	}
 }

@@ -1,3 +1,5 @@
+#![feature(path_file_prefix)]
+
 use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -11,6 +13,24 @@ const TILE_SELECTOR_MARGIN: f32 = 80.0;
 const EDITOR_LIST_Y: f32 = MAIN_MENU_HEIGHT + 4.0;
 
 const CURSOR_PNG: &[u8] = include_bytes!("cursor.png");
+
+struct NewMapPopup {
+	capsule: ModalCapsule,
+	width: usize,
+	height: usize,
+	path: String,
+}
+
+impl NewMapPopup {
+	fn new() -> Self {
+		Self {
+			capsule: ModalCapsule::new(),
+			width: 15,
+			height: 10,
+			path: String::new(),
+		}
+	}
+}
 
 fn save(
 	path: impl AsRef<Path>,
@@ -29,11 +49,14 @@ fn save(
 	class_editor.unsaved = false;
 
 	if let Some(map_editor) = map_editor {
+		let mut maps_path = PathBuf::new();
+		maps_path.push(&path);
+		maps_path.push("maps");
+		fs::create_dir_all(&maps_path)?;
+		maps_path.push(&map_editor.name);
+		maps_path.set_extension("toml");
 		let toml = map_editor.to_toml()?;
-		fs::write(
-			[path.clone(), "map.toml".into()].iter().collect::<PathBuf>(),
-			toml
-		)?;
+		fs::write(maps_path, toml)?;
 	}
 
 	Ok(())
@@ -45,6 +68,9 @@ fn main() {
 	let mut selected_tile = 0;
 	let mut autosave_timer = 0.0;
 	let save_path = PathBuf::from("example/");
+	let maps_path: PathBuf = [&*save_path.to_string_lossy(), "maps"]
+		.iter()
+		.collect();
 
 	let texture_atlas = register_tileset(
 		system.display.get_context(),
@@ -66,6 +92,7 @@ fn main() {
 		&image::open("example/unit-icons.png").unwrap(),
 	).unwrap();
 
+	// Editors
 	let mut item_editor = ItemEditor::new();
 	let mut unit_editor = UnitEditor::new();
 	let mut class_editor = ClassEditor::open(
@@ -73,26 +100,30 @@ fn main() {
 		unit_icons[0]
 	);
 	let mut map_editor: Option<MapEditor> = None;
+	// Popups
+	let mut new_map_popup = NewMapPopup::new();
 
 	let mut warning_message = String::new();
-	let mut open_path = String::new();
+	let mut level_name = String::new();
 
 	system.main_loop(move |_, ui| {
 		let display_size = ui.io().display_size;
 		let ctrl = if ui.io().config_mac_os_behaviors { "Cmd" } else { "Ctrl" };
-		let mut warning_popup = PopupCapsule::new();
-		let mut open_map_popup = PopupCapsule::new();
+		let mut warning_popup = ModalCapsule::new();
+		let mut open_map_popup = ModalCapsule::new();
+		new_map_popup.capsule.reset();
 		// for the sake of not repeating save code:
 		let mut manual_save = false;
 
 		ui.main_menu_bar(|| {
 			ui.menu("File", || {
 				if ui.menu_item("New Map") {
-					map_editor = Some(MapEditor::with_size(15, 10));
+					new_map_popup.capsule.open();
+					level_name = String::new();
 				}
 				if ui.menu_item("Open Map") {
 					open_map_popup.open();
-					open_path = String::new();
+					level_name = String::new();
 				}
 				if ui.menu_item(&format!("Save ({ctrl} + S)")) {
 					manual_save = true;
@@ -215,20 +246,61 @@ fn main() {
 			}
 		}
 
-		open_map_popup.try_modal(&ui, "Select Map", || {
-			ui.text("Select a map by path (I'll make a menu soon)");
-			ui.input_text("##input", &mut open_path).build();
+		new_map_popup.capsule.build(&ui, "New Map", || {
+			ui.dummy([300.0, 0.0]);
+			ui.input_text("##path", &mut new_map_popup.path)
+				.hint("Name")
+				.build();
+
+			ui.text("Width:");
+			ui.input_scalar("##width", &mut new_map_popup.width)
+				.step(1)
+				.build();
+
+			ui.text("Height:");
+			ui.input_scalar("##height", &mut new_map_popup.height)
+				.step(1)
+				.build();
+
+			new_map_popup.width = new_map_popup.width.max(15);
+			new_map_popup.height = new_map_popup.height.max(10);
+
 			if ui.button("Cancel") {
 				ui.close_current_popup();
 			}
 			ui.same_line();
-			if ui.button("Open") {
-				map_editor = Some(MapEditor::open(&open_path).unwrap());
+			if ui.button("Create") {
+				map_editor = Some(MapEditor::with_size(
+					new_map_popup.path.clone(),
+					new_map_popup.width,
+					new_map_popup.height,
+				));
 				ui.close_current_popup();
 			}
 		});
 
-		warning_popup.try_modal(&ui, "Warning!", || {
+		open_map_popup.build(&ui, "Open Map", || {
+			ui.dummy([300.0, 0.0]);
+			ui.text("Select a level:");
+			for entry in fs::read_dir(&maps_path).unwrap().filter_map(|e| e.ok()) {
+				let mut path = entry.path();
+				let file_name = path.file_prefix().unwrap().to_string_lossy().to_string();
+				path.pop();
+				if ui.button(&file_name) {
+					map_editor = Some(MapEditor::open(
+						&path,
+						file_name,
+					).unwrap());
+					ui.close_current_popup();
+				}
+			}
+			if ui.button("Cancel") {
+				ui.close_current_popup();
+			}
+		});
+
+		warning_popup.build(&ui, "Warning!", || {
+			ui.dummy([300.0, 0.0]);
 			ui.text(&warning_message);
 			if ui.button("Ok") {
 				ui.close_current_popup();

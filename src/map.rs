@@ -2,11 +2,12 @@ use crate::Error as FeError;
 use std::fmt::Write;
 use std::fs;
 use std::error::Error;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use toml::*;
 
 pub struct MapEditor {
 	// Data
+	pub name: String,
 	pub width: usize,
 	pub height: usize,
 	data: Vec<usize>,
@@ -18,7 +19,10 @@ pub struct MapEditor {
 }
 
 impl MapEditor {
-	pub fn open(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
+	pub fn open(
+		path: impl AsRef<Path>,
+		name: String,
+	) -> Result<Self, Box<dyn Error>> {
 		macro_rules! unwrap_toml {
 			($table:ident, $key:literal, $variant:ident, $type:literal) => {
 				{
@@ -42,7 +46,13 @@ impl MapEditor {
 			};
 		}
 
-		let toml = fs::read_to_string(path)?;
+		let mut map_path = PathBuf::new();
+		map_path.push(path);
+		map_path.push(&name);
+		map_path.set_extension("toml");
+		let toml = fs::read_to_string(&map_path).map_err(|err| {
+			FeError::from(format!("Failed to open {}: {err}", map_path.display()))
+		})?;
 		let table: Table = toml.parse()?;
 
 		let width = *unwrap_toml!(table["width"] as Integer) as usize;
@@ -56,6 +66,7 @@ impl MapEditor {
 		}
 
 		Ok(Self {
+			name,
 			width,
 			height,
 			data,
@@ -68,10 +79,11 @@ impl MapEditor {
 		})
 	}
 
-	pub fn with_size(width: usize, height: usize) -> Self {
+	pub fn with_size(name: String, width: usize, height: usize) -> Self {
 		let mut data = Vec::new();
 		data.resize((width * height) as usize, 0);
 		Self {
+			name,
 			width,
 			height,
 			data,

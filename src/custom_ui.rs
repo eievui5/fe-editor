@@ -7,27 +7,18 @@ const MOUSE_WHEEL_ZOOM_SPEED: f32 = 3.0;
 const KEYBOARD_ZOOM_SPEED: f32 = 32.0;
 const KEYBOARD_DRAG_SPEED: f32 = 1024.0;
 
-/// Allows popups to live in the root while being opened by nested code.
-/// Since elements like windows implicitly push to the Id stack,
-/// they cannot directly open popups outside of their scopes.
-pub struct PopupCapsule {
+pub struct ModalCapsule {
 	should_open: bool
 }
 
-impl PopupCapsule {
-	pub fn new() -> Self {
-		Self {
-			should_open: false,
-		}
-	}
-
+impl ModalCapsule {
+	pub fn new() -> Self { Self { should_open: false } }
 	/// Open the popup. Equivalent to Ui::open_popup().
-	pub fn open(&mut self) {
-		self.should_open = true;
-	}
-
+	pub fn open(&mut self) { self.should_open = true; }
+	/// Resets the capsule state.
+	pub fn reset(&mut self) { self.should_open = false; }
 	/// Draw the popup. Equivalent to Ui::modal_popup().
-	pub fn try_modal<R, F: FnOnce() -> R>(
+	pub fn build<R, F: FnOnce() -> R>(
 		&self,
 		ui: &Ui,
 		id: impl AsRef<str>,

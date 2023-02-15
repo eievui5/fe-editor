@@ -25,6 +25,14 @@ impl Display for Error {
 	}
 }
 
+impl From<String> for Error {
+	fn from(s: String) -> Self {
+		Self {
+			msg: s,
+		}
+	}
+}
+
 impl From<&str> for Error {
 	fn from(s: &str) -> Self {
 		Self {

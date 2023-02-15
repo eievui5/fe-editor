@@ -5,7 +5,8 @@ use imgui::*;
 use std::env;
 use std::error::Error;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::exit;
 use toml::*;
 
 const AUTOSAVE_FREQUENCY: f32 = 2.0;
@@ -81,6 +82,27 @@ impl EditorConfig {
 	}
 }
 
+/// Creates and iterates over a directory.
+fn walk_directory(
+	path: impl AsRef<Path>,
+	mut f: impl FnMut(fs::DirEntry) -> Result<(), Box<dyn Error>>,
+) -> Result<(), Box<dyn Error>> {
+	if let Err(msg) = fs::create_dir_all(&path) {
+		Err(FeError::from(format!("Cannot create level directory: {msg}")))?
+	}
+
+	// Now try to iterate over it.
+	let dir = match fs::read_dir(&path) {
+		Ok(dir) => dir,
+		Err(msg) => {
+			Err(FeError::from(format!("Cannot load level list: {msg}")))?
+		}
+	};
+	for entry in dir.filter_map(|e| e.ok()) { f(entry)?; }
+
+	Ok(())
+}
+
 fn append_path(path: &PathBuf, s: &str) -> PathBuf {
 	[&*path.to_string_lossy(), s].iter().collect()
 }
@@ -116,10 +138,11 @@ fn save(
 fn main() -> Result<(), Box<dyn Error>> {
 	let mut system = support::init("Furry Emblem - Editor");
 	let config = EditorConfig::open()?;
+	let maps_path: PathBuf = append_path(&config.save_path, "maps");
+	let unit_icons_path: PathBuf = append_path(&config.save_path, "class-icons");
 
 	let mut selected_tile = 0;
 	let mut autosave_timer = 0.0;
-	let maps_path: PathBuf = append_path(&config.save_path, "maps");
 
 	let cursor_tile = register_image(
 		system.display.get_context(),
@@ -136,11 +159,23 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 	// In the future, class/unit icons should be loaded from some config file.
 	// Classes can be serialized in unit data as their names, since this is how users will identify them.
-	let unit_icons = register_tileset(
-		system.display.get_context(),
-		system.renderer.textures(),
-		&image::open(append_path(&config.save_path, "class-icons.png"))?,
-	).unwrap();
+	let mut unit_icons = Vec::new();
+
+	if let Err(msg) = walk_directory(&unit_icons_path, |entry| {
+		unit_icons.append(&mut register_tileset(
+			system.display.get_context(),
+			system.renderer.textures(),
+			&image::open(entry.path())?,
+		)?);
+		Ok(())
+	}) {
+		eprintln!("Failed to load unit icons: {msg}");
+	}
+
+	if unit_icons.len() == 0 {
+		eprintln!("No unit icons are loaded. Exiting.");
+		exit(1);
+	}
 
 	// Editors
 	let mut item_editor = ItemEditor::new();
@@ -266,13 +301,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 					&mut class_editor,
 					&mut map_editor,
 				) {
-					Ok(_) => {
-						eprintln!("Autosaved");
-						class_editor.unsaved = false;
-					}
-					Err(err) => {
-						eprintln!("Autosave failed: {err}");
-					}
+					Ok(_) => eprintln!("Autosaved"),
+					Err(err) => eprintln!("Autosave failed: {err}"),
 				}
 			}
 			autosave_timer -= AUTOSAVE_FREQUENCY;
@@ -336,25 +366,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 			ui.dummy([300.0, 0.0]);
 			ui.text("Select a level:");
 
-			// First, make sure the level directory exists.
-			if let Err(msg) = fs::create_dir_all(&maps_path) {
-				ui.close_current_popup();
-				warning_message = format!("Cannot create level directory: {msg}");
-				warning_popup.open();
-				return;
-			}
-
-			// Now try to iterate over it.
-			let map_dir = match fs::read_dir(&maps_path) {
-				Ok(dir) => dir,
-				Err(msg) => {
-					ui.close_current_popup();
-					warning_message = format!("Cannot load level list: {msg}");
-					warning_popup.open();
-					return;
-				}
-			};
-			for entry in map_dir.filter_map(|e| e.ok()) {
+			if let Err(msg) = walk_directory(&maps_path, |entry| {
 				let mut path = entry.path();
 				// Since `maps_path` is garuanteed to be a path, this unwrap is safe.
 				let file_name = path.file_prefix().unwrap().to_string_lossy().to_string();
@@ -365,12 +377,17 @@ fn main() -> Result<(), Box<dyn Error>> {
 						Err(msg) => {
 							warning_message = format!("Cannot load level: {msg}");
 							warning_popup.open();
-							return;
 						}
 					}
 					ui.close_current_popup();
 				}
+				Ok(())
+			}) {
+				warning_message = format!("Failed to read levels: {msg}");
+				warning_popup.open();
+				ui.close_current_popup();
 			}
+
 			if ui.button("Cancel") {
 				ui.close_current_popup();
 			}

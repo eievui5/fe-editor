@@ -1,10 +1,12 @@
 #![feature(path_file_prefix)]
 
-use std::error::Error;
-use std::fs;
-use std::path::{Path, PathBuf};
 use furry_emblem_editor::*;
 use imgui::*;
+use std::env;
+use std::error::Error;
+use std::fs;
+use std::path::PathBuf;
+use toml::*;
 
 const AUTOSAVE_FREQUENCY: f32 = 2.0;
 const MAIN_MENU_HEIGHT: f32 = 22.0;
@@ -32,18 +34,67 @@ impl NewMapPopup {
 	}
 }
 
+struct EditorConfig {
+	save_path: PathBuf,
+}
+
+impl EditorConfig {
+	fn open() -> Result<Self, Box<dyn Error>> {
+		let args: Vec<String> = env::args().collect();
+
+		let config_path = if args.len() == 1 {
+			"fe-editor.toml"
+		} else if args.len() == 2 {
+			&args[1]
+		} else {
+			Err(FeError::from(format!("Too many args. Usage: {} [config file]", args[0])))?
+		};
+
+		let mut config = EditorConfig {
+			save_path: PathBuf::from("."),
+		};
+
+		match fs::read_to_string(config_path) {
+			Ok(text) => {
+				let toml: Table = text.parse()?;
+				for (key, value) in toml {
+					match key.as_str() {
+						"project" => {
+							if let Value::String(value) = value {
+								config.save_path = value.into();
+							} else {
+								eprintln!("Failed to read project path: not a string");
+							}
+						}
+						_ => {
+							eprintln!("Unrecognized key: {key}");
+						}
+					}
+				}
+			}
+			Err(msg) => {
+				eprintln!("Failed to load config file: {msg}. Treating current directory as project root.");
+			}
+		}
+
+		Ok(config)
+	}
+}
+
+fn append_path(path: &PathBuf, s: &str) -> PathBuf {
+	[&*path.to_string_lossy(), s].iter().collect()
+}
+
 fn save(
-	path: impl AsRef<Path>,
+	path: PathBuf,
 	class_editor: &mut ClassEditor,
 	map_editor: &mut Option<MapEditor>,
 ) -> Result<(), Box<dyn Error>> {
-	// This seems strange...
-	let path: PathBuf = [path].iter().collect();
 	fs::create_dir_all(&path)?;
 
 	let toml = class_editor.to_toml()?;
 	fs::write(
-		[path.clone(), "classes.toml".into()].iter().collect::<PathBuf>(),
+		append_path(&path, "classes.toml"),
 		toml
 	)?;
 	class_editor.unsaved = false;
@@ -62,26 +113,25 @@ fn save(
 	Ok(())
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
 	let mut system = support::init("Furry Emblem - Editor");
+	let config = EditorConfig::open()?;
 
 	let mut selected_tile = 0;
 	let mut autosave_timer = 0.0;
-	let save_path = PathBuf::from(".");
-	let maps_path: PathBuf = [&*save_path.to_string_lossy(), "maps"]
-		.iter()
-		.collect();
-
-	let texture_atlas = register_tileset(
-		system.display.get_context(),
-		system.renderer.textures(),
-		&image::open("tileset.png").unwrap(),
-	).unwrap();
+	let maps_path: PathBuf = append_path(&config.save_path, "maps");
 
 	let cursor_tile = register_image(
 		system.display.get_context(),
 		system.renderer.textures(),
+		// This unwrap is safe; CURSOR_PNG is constant.
 		&image::load_from_memory(CURSOR_PNG).unwrap(),
+	).unwrap();
+
+	let texture_atlas = register_tileset(
+		system.display.get_context(),
+		system.renderer.textures(),
+		&image::open(append_path(&config.save_path, "tileset.png"))?,
 	).unwrap();
 
 	// In the future, class/unit icons should be loaded from some config file.
@@ -89,14 +139,14 @@ fn main() {
 	let unit_icons = register_tileset(
 		system.display.get_context(),
 		system.renderer.textures(),
-		&image::open("class-icons.png").unwrap(),
+		&image::open(append_path(&config.save_path, "class-icons.png"))?,
 	).unwrap();
 
 	// Editors
 	let mut item_editor = ItemEditor::new();
 	let mut unit_editor = UnitEditor::new();
 	let mut class_editor = ClassEditor::open(
-		[save_path.clone(), "classes.toml".into()].iter().collect::<PathBuf>(),
+		append_path(&config.save_path, "classes.toml"),
 		unit_icons[0]
 	);
 	let mut map_editor: Option<MapEditor> = None;
@@ -211,10 +261,8 @@ fn main() {
 				// TODO: In the future, autosaving and saving should be considered seperate actions.
 				// If autosaving fails, the "autosaved" flag should still be set,
 				// so that it isn't attempted again until a change is made that may fix it.
-				let mut autosave_dir = save_path.clone();
-				autosave_dir.push("autosave/");
 				match save(
-					autosave_dir,
+					append_path(&config.save_path, "autosave/"),
 					&mut class_editor,
 					&mut map_editor,
 				) {
@@ -233,7 +281,7 @@ fn main() {
 
 		if manual_save || ui.io().key_ctrl && ui.is_key_pressed(Key::S) {
 			match save(
-				&save_path,
+				config.save_path.clone(),
 				&mut class_editor,
 				&mut map_editor,
 			) {
@@ -269,28 +317,57 @@ fn main() {
 				ui.close_current_popup();
 			}
 			ui.same_line();
-			if ui.button("Create") {
-				map_editor = Some(MapEditor::with_size(
-					new_map_popup.path.clone(),
-					new_map_popup.width,
-					new_map_popup.height,
-				));
-				ui.close_current_popup();
+			if new_map_popup.path.len() == 0 {
+				ui.button("Create");
+				ui.hover_tooltip("Level must have a name");
+			} else {
+				if ui.button("Create") {
+					map_editor = Some(MapEditor::with_size(
+						new_map_popup.path.clone(),
+						new_map_popup.width,
+						new_map_popup.height,
+					));
+					ui.close_current_popup();
+				}
 			}
 		});
 
 		open_map_popup.build(&ui, "Open Map", || {
 			ui.dummy([300.0, 0.0]);
 			ui.text("Select a level:");
-			for entry in fs::read_dir(&maps_path).unwrap().filter_map(|e| e.ok()) {
+
+			// First, make sure the level directory exists.
+			if let Err(msg) = fs::create_dir_all(&maps_path) {
+				ui.close_current_popup();
+				warning_message = format!("Cannot create level directory: {msg}");
+				warning_popup.open();
+				return;
+			}
+
+			// Now try to iterate over it.
+			let map_dir = match fs::read_dir(&maps_path) {
+				Ok(dir) => dir,
+				Err(msg) => {
+					ui.close_current_popup();
+					warning_message = format!("Cannot load level list: {msg}");
+					warning_popup.open();
+					return;
+				}
+			};
+			for entry in map_dir.filter_map(|e| e.ok()) {
 				let mut path = entry.path();
+				// Since `maps_path` is garuanteed to be a path, this unwrap is safe.
 				let file_name = path.file_prefix().unwrap().to_string_lossy().to_string();
 				path.pop();
 				if ui.button(&file_name) {
-					map_editor = Some(MapEditor::open(
-						&path,
-						file_name,
-					).unwrap());
+					match MapEditor::open(&path, file_name) {
+						Ok(editor) => map_editor = Some(editor),
+						Err(msg) => {
+							warning_message = format!("Cannot load level: {msg}");
+							warning_popup.open();
+							return;
+						}
+					}
 					ui.close_current_popup();
 				}
 			}
@@ -307,4 +384,6 @@ fn main() {
 			}
 		});
 	});
+
+	Ok(())
 }

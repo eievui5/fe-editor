@@ -1,6 +1,5 @@
 mod classes;
 mod custom_ui;
-mod editors;
 mod map;
 mod texture_loader;
 
@@ -8,7 +7,6 @@ pub mod support;
 
 pub use classes::*;
 pub use custom_ui::*;
-pub use editors::*;
 pub use fe_data::*;
 pub use map::*;
 pub use texture_loader::*;

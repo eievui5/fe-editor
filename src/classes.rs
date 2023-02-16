@@ -94,7 +94,6 @@ impl ClassData {
 
 pub struct ClassEditor {
 	pub unsaved: bool,
-	pub is_shown: bool,
 	pub classes: Vec<ClassData>,
 	pub search_field: String,
 	pub default_icon: PathBuf,
@@ -119,7 +118,6 @@ impl ClassEditor {
 
 		Self {
 			unsaved: false,
-			is_shown: true,
 			classes,
 			search_field: String::new(),
 			default_icon,
@@ -154,24 +152,14 @@ impl ClassEditor {
 	fn search_mut(&mut self) -> &mut String {
 		&mut self.search_field
 	}
-	fn is_shown(&mut self) -> &mut bool {
-		&mut self.is_shown
-	}
 
 	pub fn draw(&mut self, ui: &Ui, position: (f32, f32), class_icons: &ClassIcons) {
-		let mut is_shown = *self.is_shown();
-
 		// Track any changes that occur during this frame.
 		let mut editor_hash = DefaultHasher::new();
 		self.entries().hash(&mut editor_hash);
 		let editor_hash = editor_hash.finish();
 
-		if !is_shown {
-			return;
-		}
-
 		ui.window("Classes")
-			.opened(&mut is_shown)
 			.position([position.0, position.1], Condition::FirstUseEver)
 			.size([200.0, 400.0], Condition::FirstUseEver)
 			.menu_bar(true)
@@ -251,7 +239,6 @@ impl ClassEditor {
 		self.entries().hash(&mut current_hash);
 		let current_hash = current_hash.finish();
 
-		*self.is_shown() = is_shown;
 		if !*self.unsaved() {
 			*self.unsaved() = editor_hash != current_hash;
 		}

@@ -188,17 +188,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 	}
 
 	// Editors
-	let mut item_editor = ItemEditor::new();
-	let mut unit_editor = UnitEditor::new();
 	let mut class_editor = ClassEditor::open(
 		append_path(&config.save_path, "classes.toml"),
 		// This is safe to unwrap.
 		default_class_icon.unwrap(),
 	);
 	let mut map_editor: Option<MapEditor> = None;
+
 	// Popups
 	let mut new_map_popup = NewMapPopup::new();
-
 	let mut warning_message = String::new();
 	let mut level_name = String::new();
 
@@ -230,35 +228,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 					manual_save = true;
 				}
 			});
-			ui.menu("View", || {
-				ui.checkbox("Item editor", &mut item_editor.is_shown);
-				ui.checkbox("Unit editor", &mut unit_editor.is_shown);
-				ui.checkbox("Class editor", &mut class_editor.is_shown);
-			});
-			ui.menu_item("Options");
-			ui.menu("Help", || {
+			ui.menu("Info", || {
 				ui.text("Furry Emblem Editor");
 				ui.text("By Evie M.");
 			});
 		});
 
-		ui.editor_list(
-			&mut item_editor,
-			"Items",
-			"Item",
-			(MAP_VIEWER_MARGIN, EDITOR_LIST_Y),
-		);
-
-		ui.editor_list(
-			&mut unit_editor,
-			"Units",
-			"Unit",
-			(MAP_VIEWER_MARGIN + 200.0, EDITOR_LIST_Y),
-		);
-
 		class_editor.draw(
 			&ui,
-			(MAP_VIEWER_MARGIN + 200.0 * 2.0, EDITOR_LIST_Y),
+			(MAP_VIEWER_MARGIN + 200.0 * 0.0, EDITOR_LIST_Y),
 			&unit_icons,
 		);
 
@@ -306,8 +284,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 		}
 
 		// End-of-frame cleanup
-		item_editor.items.retain(|i| i.is_open);
-		unit_editor.units.retain(|i| i.is_open);
 		class_editor.classes.retain(|i| i.is_open);
 		if autosave_timer > AUTOSAVE_FREQUENCY {
 			if class_editor.unsaved {

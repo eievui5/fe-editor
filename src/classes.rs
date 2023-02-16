@@ -5,7 +5,6 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
-use std::fmt::Write;
 use std::hash::Hasher;
 use std::path::{Path, PathBuf};
 use toml::*;
@@ -15,60 +14,33 @@ use std::hash::Hash;
 pub type ClassIcons = HashMap<PathBuf, TextureId>;
 
 #[derive(Hash)]
-pub struct ClassData {
+pub struct ClassEntry {
 	// Data
-	pub name: String,
-	pub desc: String,
-	pub texture: PathBuf,
+	pub data: ClassData,
 	pub uuid: Uuid,
 	pub is_open: bool,
 }
 
-impl ClassData {
+impl ClassEntry {
 	pub fn from(name: String, table: Table) -> Result<Self, Box<dyn Error>> {
-		let desc = if let Value::String(desc) = &table["desc"] {
-			desc.clone()
-		} else {
-			panic!();
-		};
-		let texture = if let Value::String(icon) = &table["icon"] {
-			PathBuf::from(icon)
-		} else {
-			panic!();
-		};
 		Ok(Self {
-			name,
-			desc,
-			texture,
+			data: ClassData::from(name, table)?,
 			uuid: Uuid::new_v4(),
 			is_open: true,
 		})
 	}
+
 	pub fn with_texture(texture: PathBuf) -> Self {
 		Self {
-			name: String::new(),
-			desc: String::new(),
-			texture,
+			data: ClassData::with_texture(texture),
 			uuid: Uuid::new_v4(),
 			is_open: true,
 		}
 	}
 
-	pub fn to_toml(&self) -> Result<String, Box<dyn Error>> {
-		if self.name.len() == 0 {
-			Err(FeError::from("A class has a blank name."))?
-		}
-
-		let mut toml = String::new();
-		write!(toml, "[{:?}]\n", self.name)?;
-		write!(toml, "desc = {:?}\n", self.desc)?;
-		write!(toml, "icon = {:?}\n", self.texture.display())?;
-		Ok(toml)
-	}
-
 	fn editor(&mut self, ui: &Ui, class_icons: &ClassIcons) {
-		ui.input_text("##name", &mut self.name).hint("Name").build();
-		if ui.image_button("##class", class_icons[&self.texture], [32.0, 32.0]) {
+		ui.input_text("##name", &mut self.data.name).hint("Name").build();
+		if ui.image_button("##class", class_icons[&self.data.texture], [32.0, 32.0]) {
 			ui.open_popup("Select Icon");
 		}
 		ui.hover_tooltip("Click to select class icon");
@@ -76,7 +48,7 @@ impl ClassData {
 		ui.text("Description:");
 		ui.input_text_multiline(
 			"##desc",
-			&mut self.desc,
+			&mut self.data.desc,
 			[ui.content_region_avail()[0], 64.0],
 		)
 		.build();
@@ -93,7 +65,7 @@ impl ClassData {
 					*texture,
 					[32.0; 2]
 				) {
-					self.texture = path.clone();
+					self.data.texture = path.clone();
 				}
 				ui.hover_tooltip(&path.to_string_lossy());
 			}
@@ -103,20 +75,15 @@ impl ClassData {
 	fn close(&mut self) {
 		self.is_open = false;
 	}
+
 	fn is_new(&self) -> bool {
-		self.name.len() == 0
-	}
-	fn uuid(&self) -> Uuid {
-		self.uuid
-	}
-	fn name(&self) -> &String {
-		&self.name
+		self.data.name.len() == 0
 	}
 }
 
 pub struct ClassEditor {
 	pub unsaved: bool,
-	pub classes: Vec<ClassData>,
+	pub classes: Vec<ClassEntry>,
 	pub search_field: String,
 	pub default_icon: PathBuf,
 }
@@ -129,7 +96,7 @@ impl ClassEditor {
 			let class_table: Table = toml.parse()?;
 			for (name, table) in class_table {
 				let class = if let Value::Table(table) = table {
-					ClassData::from(name, table)?
+					ClassEntry::from(name, table)?
 				} else {
 					Err(FeError::from("Class data is not a table"))?
 				};
@@ -148,36 +115,21 @@ impl ClassEditor {
 	pub fn to_toml(&self) -> Result<String, Box<dyn Error>> {
 		let mut toml = String::new();
 		for i in &self.classes {
-			toml += &i.to_toml()?;
+			toml += &i.data.to_toml()?;
 			toml += "\n";
 		}
 		Ok(toml)
 	}
 
-	fn entries(&self) -> &Vec<ClassData> {
-		&self.classes
-	}
-	fn entries_mut(&mut self) -> &mut Vec<ClassData> {
-		&mut self.classes
-	}
 	fn add_entry(&mut self) {
 		self.classes
-			.push(ClassData::with_texture(self.default_icon.clone()));
-	}
-	fn unsaved(&mut self) -> &mut bool {
-		&mut self.unsaved
-	}
-	fn search(&self) -> &str {
-		&self.search_field
-	}
-	fn search_mut(&mut self) -> &mut String {
-		&mut self.search_field
+			.push(ClassEntry::with_texture(self.default_icon.clone()));
 	}
 
 	pub fn draw(&mut self, ui: &Ui, position: (f32, f32), class_icons: &ClassIcons) {
 		// Track any changes that occur during this frame.
 		let mut editor_hash = DefaultHasher::new();
-		self.entries().hash(&mut editor_hash);
+		self.classes.hash(&mut editor_hash);
 		let editor_hash = editor_hash.finish();
 
 		ui.window("Classes")
@@ -186,35 +138,35 @@ impl ClassEditor {
 			.menu_bar(true)
 			.focus_on_appearing(false)
 			.collapsed(true, Condition::FirstUseEver)
-			.unsaved_document(*self.unsaved())
+			.unsaved_document(self.unsaved)
 			.build(|| {
 				ui.menu_bar(|| {
 					ui.menu_item("Save");
 				});
 
 				ui.text("Search:");
-				ui.input_text("##search", &mut self.search_mut()).build();
+				ui.input_text("##search", &mut self.search_field).build();
 
 				ui.separator();
 
-				let normalized_query = if self.search().len() > 0 {
-					Some(self.search().to_ascii_lowercase())
+				let normalized_query = if self.search_field.len() > 0 {
+					Some(self.search_field.to_ascii_lowercase())
 				} else {
 					None
 				};
 
-				for item in self.entries_mut() {
+				for item in &mut self.classes {
 					if let Some(query) = &normalized_query {
-						if !item.name().to_ascii_lowercase().contains(query) {
+						if !item.data.name.to_ascii_lowercase().contains(query) {
 							continue;
 						}
 					}
 
-					let _id = ui.push_id(&item.uuid().to_string());
+					let _id = ui.push_id(&item.uuid.to_string());
 
 					ui.tree_node_config("##header")
-						.label::<String, String>(if item.name().len() > 0 {
-							item.name().clone()
+						.label::<String, String>(if !item.is_new() {
+							item.data.name.clone()
 						} else {
 							format!("New class")
 						})
@@ -231,7 +183,7 @@ impl ClassEditor {
 							if ui.modal_popup_config("Delete").build(|| {
 								ui.text(&format!(
 									"Do you really want to delete \"{}\"?",
-									item.name()
+									item.data.name
 								));
 								if ui.button("Cancel") {
 									ui.close_current_popup();
@@ -257,11 +209,11 @@ impl ClassEditor {
 			});
 
 		let mut current_hash = DefaultHasher::new();
-		self.entries().hash(&mut current_hash);
+		self.classes.hash(&mut current_hash);
 		let current_hash = current_hash.finish();
 
-		if !*self.unsaved() {
-			*self.unsaved() = editor_hash != current_hash;
+		if !self.unsaved {
+			self.unsaved = editor_hash != current_hash;
 		}
 	}
 }

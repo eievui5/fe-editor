@@ -3,7 +3,9 @@ use fe_data::FeError;
 use imgui::*;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::error::Error;
 use std::fs;
+use std::fmt::Write;
 use std::hash::Hasher;
 use std::path::{Path, PathBuf};
 use toml::*;
@@ -23,25 +25,44 @@ pub struct ClassData {
 }
 
 impl ClassData {
-	// TODO: This really should not need a copy, but the main loop closure seems
-	// to make it so that these collections can't be "safely" borrowed.
+	pub fn from(name: String, table: Table) -> Result<Self, Box<dyn Error>> {
+		let desc = if let Value::String(desc) = &table["desc"] {
+			desc.clone()
+		} else {
+			panic!();
+		};
+		let texture = if let Value::String(icon) = &table["icon"] {
+			PathBuf::from(icon)
+		} else {
+			panic!();
+		};
+		Ok(Self {
+			name,
+			desc,
+			texture,
+			uuid: Uuid::new_v4(),
+			is_open: true,
+		})
+	}
 	pub fn with_texture(texture: PathBuf) -> Self {
 		Self {
-			texture,
 			name: String::new(),
 			desc: String::new(),
+			texture,
 			uuid: Uuid::new_v4(),
 			is_open: true,
 		}
 	}
 
-	pub fn to_toml(&self) -> Result<String, FeError> {
+	pub fn to_toml(&self) -> Result<String, Box<dyn Error>> {
 		if self.name.len() == 0 {
-			return Err(FeError::from("A class has a blank name."));
+			Err(FeError::from("A class has a blank name."))?
 		}
 
-		let mut toml = format!("[{:?}]\n", self.name);
-		toml += &format!("desc = {:?}\n", self.desc);
+		let mut toml = String::new();
+		write!(toml, "[{:?}]\n", self.name)?;
+		write!(toml, "desc = {:?}\n", self.desc)?;
+		write!(toml, "icon = {:?}\n", self.texture.display())?;
 		Ok(toml)
 	}
 
@@ -60,22 +81,23 @@ impl ClassData {
 		)
 		.build();
 
-		//ui.popup("Select Icon", || {
-		//	ui.text("Select an icon");
-		//	for (i, texture) in self.textures.iter().enumerate() {
-		//		// Classes per row.
-		//		if i % 3 != 0 {
-		//			ui.same_line();
-		//		}
-		//		if ui.image_button(
-		//			i.to_string(),
-		//			*texture,
-		//			[32.0; 2]
-		//		) {
-		//			self.texture = *texture;
-		//		}
-		//	}
-		//});
+		ui.popup("Select Icon", || {
+			ui.text("Select an icon");
+			for (i, (path, texture)) in class_icons.iter().enumerate() {
+				// Classes per row.
+				if i % 3 != 0 {
+					ui.same_line();
+				}
+				if ui.image_button(
+					i.to_string(),
+					*texture,
+					[32.0; 2]
+				) {
+					self.texture = path.clone();
+				}
+				ui.hover_tooltip(&path.to_string_lossy());
+			}
+		});
 	}
 
 	fn close(&mut self) {
@@ -100,31 +122,30 @@ pub struct ClassEditor {
 }
 
 impl ClassEditor {
-	pub fn open(path: impl AsRef<Path>, default_icon: PathBuf) -> Self {
+	pub fn open(path: impl AsRef<Path>, default_icon: PathBuf) -> Result<Self, Box<dyn Error>> {
 		let mut classes = Vec::new();
 
 		if let Ok(toml) = fs::read_to_string(path) {
-			let class_table: Table = toml.parse().unwrap();
+			let class_table: Table = toml.parse()?;
 			for (name, table) in class_table {
-				// TODO: This texture should be loaded from classes.toml
-				let mut class = ClassData::with_texture(default_icon.clone());
-				class.name = name;
-				if let Value::String(desc) = &table["desc"] {
-					class.desc = desc.to_string()
-				}
+				let class = if let Value::Table(table) = table {
+					ClassData::from(name, table)?
+				} else {
+					Err(FeError::from("Class data is not a table"))?
+				};
 				classes.push(class);
 			}
 		}
 
-		Self {
+		Ok(Self {
 			unsaved: false,
 			classes,
 			search_field: String::new(),
 			default_icon,
-		}
+		})
 	}
 
-	pub fn to_toml(&self) -> Result<String, FeError> {
+	pub fn to_toml(&self) -> Result<String, Box<dyn Error>> {
 		let mut toml = String::new();
 		for i in &self.classes {
 			toml += &i.to_toml()?;

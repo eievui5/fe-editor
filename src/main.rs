@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 use toml::*;
 
-const AUTOSAVE_FREQUENCY: f32 = 2.0;
 const MAIN_MENU_HEIGHT: f32 = 22.0;
 const MAP_VIEWER_MARGIN: f32 = 32.0;
 const TILE_SELECTOR_MARGIN: f32 = 80.0;
@@ -144,7 +143,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 	let unit_icons_path: PathBuf = append_path(&config.save_path, "class-icons");
 
 	let mut selected_tile = 0;
-	let mut autosave_timer = 0.0;
 
 	let cursor_tile = register_image(
 		system.display.get_context(),
@@ -192,7 +190,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 		append_path(&config.save_path, "classes.toml"),
 		// This is safe to unwrap.
 		default_class_icon.unwrap(),
-	);
+	)?;
 	let mut map_editor: Option<MapEditor> = None;
 
 	// Popups
@@ -285,23 +283,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 		// End-of-frame cleanup
 		class_editor.classes.retain(|i| i.is_open);
-		if autosave_timer > AUTOSAVE_FREQUENCY {
-			if class_editor.unsaved {
-				// TODO: In the future, autosaving and saving should be considered seperate actions.
-				// If autosaving fails, the "autosaved" flag should still be set,
-				// so that it isn't attempted again until a change is made that may fix it.
-				match save(
-					append_path(&config.save_path, "autosave/"),
-					&mut class_editor,
-					&mut map_editor,
-				) {
-					Ok(_) => eprintln!("Autosaved"),
-					Err(err) => eprintln!("Autosave failed: {err}"),
-				}
-			}
-			autosave_timer -= AUTOSAVE_FREQUENCY;
-		}
-		autosave_timer += ui.io().delta_time;
 
 		if manual_save || ctrl && ui.is_key_pressed(Key::S) {
 			match save(config.save_path.clone(), &mut class_editor, &mut map_editor) {

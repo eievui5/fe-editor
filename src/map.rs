@@ -13,10 +13,7 @@ pub struct MapEditor {
 }
 
 impl MapEditor {
-	pub fn open(
-		path: impl AsRef<Path>,
-		name: String,
-	) -> Result<Self, Box<dyn Error>> {
+	pub fn open(path: impl AsRef<Path>, name: String) -> Result<Self, Box<dyn Error>> {
 		Ok(Self {
 			data: MapData::open(path, name)?,
 			// UI stuff

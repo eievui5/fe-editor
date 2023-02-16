@@ -1,13 +1,13 @@
-use std::hash::Hasher;
 use crate::*;
-use std::collections::HashMap;
-use std::collections::hash_map::DefaultHasher;
-use std::path::{Path, PathBuf};
-use uuid::Uuid;
 use fe_data::FeError;
 use imgui::*;
-use toml::*;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::fs;
+use std::hash::Hasher;
+use std::path::{Path, PathBuf};
+use toml::*;
+use uuid::Uuid;
 
 use std::hash::Hash;
 pub type ClassIcons = HashMap<PathBuf, TextureId>;
@@ -37,9 +37,7 @@ impl ClassData {
 
 	pub fn to_toml(&self) -> Result<String, FeError> {
 		if self.name.len() == 0 {
-			return Err(FeError::from(
-				"A class has a blank name."
-			));
+			return Err(FeError::from("A class has a blank name."));
 		}
 
 		let mut toml = format!("[{:?}]\n", self.name);
@@ -48,9 +46,7 @@ impl ClassData {
 	}
 
 	fn editor(&mut self, ui: &Ui, class_icons: &ClassIcons) {
-		ui.input_text("##name", &mut self.name)
-			.hint("Name")
-			.build();
+		ui.input_text("##name", &mut self.name).hint("Name").build();
 		if ui.image_button("##class", class_icons[&self.texture], [32.0, 32.0]) {
 			ui.open_popup("Select Icon");
 		}
@@ -60,8 +56,9 @@ impl ClassData {
 		ui.input_text_multiline(
 			"##desc",
 			&mut self.desc,
-			[ui.content_region_avail()[0], 64.0]
-		).build();
+			[ui.content_region_avail()[0], 64.0],
+		)
+		.build();
 
 		//ui.popup("Select Icon", || {
 		//	ui.text("Select an icon");
@@ -81,10 +78,18 @@ impl ClassData {
 		//});
 	}
 
-	fn close(&mut self) { self.is_open = false; }
-	fn is_new(&self) -> bool {  self.name.len() == 0 }
-	fn uuid(&self) -> Uuid { self.uuid }
-	fn name(&self) -> &String { &self.name }
+	fn close(&mut self) {
+		self.is_open = false;
+	}
+	fn is_new(&self) -> bool {
+		self.name.len() == 0
+	}
+	fn uuid(&self) -> Uuid {
+		self.uuid
+	}
+	fn name(&self) -> &String {
+		&self.name
+	}
 }
 
 pub struct ClassEditor {
@@ -96,10 +101,7 @@ pub struct ClassEditor {
 }
 
 impl ClassEditor {
-	pub fn open(
-		path: impl AsRef<Path>,
-		default_icon: PathBuf
-	) -> Self {
+	pub fn open(path: impl AsRef<Path>, default_icon: PathBuf) -> Self {
 		let mut classes = Vec::new();
 
 		if let Ok(toml) = fs::read_to_string(path) {
@@ -133,24 +135,30 @@ impl ClassEditor {
 		Ok(toml)
 	}
 
-	fn entries(&self) -> &Vec<ClassData> { &self.classes }
-	fn entries_mut(&mut self) -> &mut Vec<ClassData> { &mut self.classes }
-	fn add_entry(&mut self) {
-		self.classes.push(
-			ClassData::with_texture(self.default_icon.clone())
-		);
+	fn entries(&self) -> &Vec<ClassData> {
+		&self.classes
 	}
-	fn unsaved(&mut self) -> &mut bool { &mut self.unsaved }
-	fn search(&self) -> &str { &self.search_field }
-	fn search_mut(&mut self) -> &mut String { &mut self.search_field }
-	fn is_shown(&mut self) -> &mut bool { &mut self.is_shown }
+	fn entries_mut(&mut self) -> &mut Vec<ClassData> {
+		&mut self.classes
+	}
+	fn add_entry(&mut self) {
+		self.classes
+			.push(ClassData::with_texture(self.default_icon.clone()));
+	}
+	fn unsaved(&mut self) -> &mut bool {
+		&mut self.unsaved
+	}
+	fn search(&self) -> &str {
+		&self.search_field
+	}
+	fn search_mut(&mut self) -> &mut String {
+		&mut self.search_field
+	}
+	fn is_shown(&mut self) -> &mut bool {
+		&mut self.is_shown
+	}
 
-	pub fn draw(
-		&mut self,
-		ui: &Ui,
-		position: (f32, f32),
-		class_icons: &ClassIcons,
-	) {
+	pub fn draw(&mut self, ui: &Ui, position: (f32, f32), class_icons: &ClassIcons) {
 		let mut is_shown = *self.is_shown();
 
 		// Track any changes that occur during this frame.
@@ -196,13 +204,11 @@ impl ClassEditor {
 					let _id = ui.push_id(&item.uuid().to_string());
 
 					ui.tree_node_config("##header")
-						.label::<String, String>(
-							if item.name().len() > 0 {
-								item.name().clone()
-							} else {
-								format!("New class")
-							}
-						)
+						.label::<String, String>(if item.name().len() > 0 {
+							item.name().clone()
+						} else {
+							format!("New class")
+						})
 						.framed(true)
 						// Open the item entry if the name is empty,
 						// since this means it's newly created; empty items can't be loaded from disk.
@@ -227,7 +233,8 @@ impl ClassEditor {
 									return true;
 								}
 								false
-							}) == Some(true) {
+							}) == Some(true)
+							{
 								item.close()
 							}
 						});

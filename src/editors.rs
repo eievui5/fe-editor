@@ -1,6 +1,6 @@
 use crate::*;
 use imgui::*;
-use std::hash::{Hash};
+use std::hash::Hash;
 use uuid::Uuid;
 
 pub trait ListItem {
@@ -47,20 +47,26 @@ impl ItemData {
 
 impl ListItem for ItemData {
 	fn editor(&mut self, ui: &Ui) {
-		ui.input_text("##name", &mut self.name)
-			.hint("Name")
-			.build();
+		ui.input_text("##name", &mut self.name).hint("Name").build();
 
 		ui.input_text("##desc", &mut self.desc)
 			.hint("Description")
 			.build();
 		ui.hover_tooltip("May be blank");
 	}
-	
-	fn close(&mut self) { self.is_open = false; }
-	fn is_new(&self) -> bool {  self.name.len() == 0 }
-	fn uuid(&self) -> Uuid { self.uuid }
-	fn name(&self) -> &String { &self.name }
+
+	fn close(&mut self) {
+		self.is_open = false;
+	}
+	fn is_new(&self) -> bool {
+		self.name.len() == 0
+	}
+	fn uuid(&self) -> Uuid {
+		self.uuid
+	}
+	fn name(&self) -> &String {
+		&self.name
+	}
 }
 
 pub struct ItemEditor {
@@ -84,13 +90,27 @@ impl ItemEditor {
 impl EditorList for ItemEditor {
 	type Item = ItemData;
 
-	fn entries(&self) -> &Vec<Self::Item> { &self.items }
-	fn entries_mut(&mut self) -> &mut Vec<Self::Item> { &mut self.items }
-	fn add_entry(&mut self) { self.items.push(ItemData::new()); }
-	fn unsaved(&mut self) -> &mut bool { &mut self.unsaved }
-	fn search(&self) -> &str { &self.search_field }
-	fn search_mut(&mut self) -> &mut String { &mut self.search_field }
-	fn is_shown(&mut self) -> &mut bool { &mut self.is_shown }
+	fn entries(&self) -> &Vec<Self::Item> {
+		&self.items
+	}
+	fn entries_mut(&mut self) -> &mut Vec<Self::Item> {
+		&mut self.items
+	}
+	fn add_entry(&mut self) {
+		self.items.push(ItemData::new());
+	}
+	fn unsaved(&mut self) -> &mut bool {
+		&mut self.unsaved
+	}
+	fn search(&self) -> &str {
+		&self.search_field
+	}
+	fn search_mut(&mut self) -> &mut String {
+		&mut self.search_field
+	}
+	fn is_shown(&mut self) -> &mut bool {
+		&mut self.is_shown
+	}
 }
 
 #[derive(Hash)]
@@ -119,26 +139,33 @@ impl UnitData {
 
 impl ListItem for UnitData {
 	fn editor(&mut self, ui: &Ui) {
-		ui.input_text("##name", &mut self.name)
-			.hint("Name")
-			.build();
+		ui.input_text("##name", &mut self.name).hint("Name").build();
 
 		ui.text("Background:");
 		ui.input_text_multiline(
 			"##desc",
 			&mut self.desc,
-			[ui.content_region_avail()[0], 64.0]
-		).build();
+			[ui.content_region_avail()[0], 64.0],
+		)
+		.build();
 
 		ui.input_text("##class", &mut self.class)
 			.hint("Class")
 			.build();
 	}
 
-	fn close(&mut self) { self.is_open = false; }
-	fn is_new(&self) -> bool {  self.name.len() == 0 }
-	fn uuid(&self) -> Uuid { self.uuid }
-	fn name(&self) -> &String { &self.name }
+	fn close(&mut self) {
+		self.is_open = false;
+	}
+	fn is_new(&self) -> bool {
+		self.name.len() == 0
+	}
+	fn uuid(&self) -> Uuid {
+		self.uuid
+	}
+	fn name(&self) -> &String {
+		&self.name
+	}
 }
 
 pub struct UnitEditor {
@@ -161,12 +188,26 @@ impl UnitEditor {
 
 impl EditorList for UnitEditor {
 	type Item = UnitData;
-	
-	fn entries(&self) -> &Vec<Self::Item> { &self.units }
-	fn entries_mut(&mut self) -> &mut Vec<Self::Item> { &mut self.units }
-	fn add_entry(&mut self) { self.units.push(UnitData::new()); }
-	fn unsaved(&mut self) -> &mut bool { &mut self.unsaved }
-	fn search(&self) -> &str { &self.search_field }
-	fn search_mut(&mut self) -> &mut String { &mut self.search_field }
-	fn is_shown(&mut self) -> &mut bool { &mut self.is_shown }
+
+	fn entries(&self) -> &Vec<Self::Item> {
+		&self.units
+	}
+	fn entries_mut(&mut self) -> &mut Vec<Self::Item> {
+		&mut self.units
+	}
+	fn add_entry(&mut self) {
+		self.units.push(UnitData::new());
+	}
+	fn unsaved(&mut self) -> &mut bool {
+		&mut self.unsaved
+	}
+	fn search(&self) -> &str {
+		&self.search_field
+	}
+	fn search_mut(&mut self) -> &mut String {
+		&mut self.search_field
+	}
+	fn is_shown(&mut self) -> &mut bool {
+		&mut self.is_shown
+	}
 }

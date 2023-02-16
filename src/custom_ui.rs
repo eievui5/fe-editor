@@ -8,22 +8,23 @@ const KEYBOARD_ZOOM_SPEED: f32 = 32.0;
 const KEYBOARD_DRAG_SPEED: f32 = 1024.0;
 
 pub struct ModalCapsule {
-	should_open: bool
+	should_open: bool,
 }
 
 impl ModalCapsule {
-	pub fn new() -> Self { Self { should_open: false } }
+	pub fn new() -> Self {
+		Self { should_open: false }
+	}
 	/// Open the popup. Equivalent to Ui::open_popup().
-	pub fn open(&mut self) { self.should_open = true; }
+	pub fn open(&mut self) {
+		self.should_open = true;
+	}
 	/// Resets the capsule state.
-	pub fn reset(&mut self) { self.should_open = false; }
+	pub fn reset(&mut self) {
+		self.should_open = false;
+	}
 	/// Draw the popup. Equivalent to Ui::modal_popup().
-	pub fn build<R, F: FnOnce() -> R>(
-		&self,
-		ui: &Ui,
-		id: impl AsRef<str>,
-		f: F
-	) -> Option<R> {
+	pub fn build<R, F: FnOnce() -> R>(&self, ui: &Ui, id: impl AsRef<str>, f: F) -> Option<R> {
 		if self.should_open {
 			ui.open_popup(&id);
 		}
@@ -39,7 +40,7 @@ pub trait CustomUi {
 		editor: &mut T,
 		title: &str,
 		hint: &str,
-		position: (f32, f32)
+		position: (f32, f32),
 	);
 	fn tilemap(
 		&self,
@@ -72,7 +73,7 @@ impl CustomUi for Ui {
 		editor: &mut T,
 		title: &str,
 		hint: &str,
-		position: (f32, f32)
+		position: (f32, f32),
 	) {
 		let mut is_shown = *editor.is_shown();
 
@@ -99,7 +100,8 @@ impl CustomUi for Ui {
 				});
 
 				self.text("Search:");
-				self.input_text("##search", &mut editor.search_mut()).build();
+				self.input_text("##search", &mut editor.search_mut())
+					.build();
 
 				self.separator();
 
@@ -119,13 +121,11 @@ impl CustomUi for Ui {
 					let _id = self.push_id(&item.uuid().to_string());
 
 					self.tree_node_config("##header")
-						.label::<String, String>(
-							if item.name().len() > 0 {
-								item.name().clone()
-							} else {
-								format!("New {hint}")
-							}
-						)
+						.label::<String, String>(if item.name().len() > 0 {
+							item.name().clone()
+						} else {
+							format!("New {hint}")
+						})
 						.framed(true)
 						// Open the item entry if the name is empty,
 						// since this means it's newly created; empty items can't be loaded from disk.
@@ -150,7 +150,8 @@ impl CustomUi for Ui {
 									return true;
 								}
 								false
-							}) == Some(true) {
+							}) == Some(true)
+							{
 								item.close()
 							}
 						});
@@ -189,17 +190,11 @@ impl CustomUi for Ui {
 		for ty in 0..map.data.height {
 			for tx in 0..map.data.width {
 				let tile = *map.get_tile(tx, ty);
-				let x = (tx as f32) * map.zoom
-					+ map.scroll[0]
-					+ window_pos[0];
-				let y = (ty as f32) * map.zoom
-					+ map.scroll[1]
-					+ window_pos[1];
-				draw_list.add_image(
-					texture_atlas[tile],
-					[x, y],
-					[x + map.zoom, y + map.zoom]
-				).build();
+				let x = (tx as f32) * map.zoom + map.scroll[0] + window_pos[0];
+				let y = (ty as f32) * map.zoom + map.scroll[1] + window_pos[1];
+				draw_list
+					.add_image(texture_atlas[tile], [x, y], [x + map.zoom, y + map.zoom])
+					.build();
 			}
 		}
 
@@ -209,14 +204,18 @@ impl CustomUi for Ui {
 			let y = (self.io().mouse_pos[1] - map.scroll[1] - window_pos[1]) / map.zoom;
 			let mouse_drag_delta = self.mouse_drag_delta_with_button(MouseButton::Middle);
 
-			let map_zoom_delta = map.zoom - (
-				map.zoom
+			let map_zoom_delta = map.zoom
+				- (map.zoom
 				// Enable zooming with mouse wheel...
 				+ self.io().mouse_wheel * MOUSE_WHEEL_ZOOM_SPEED
 				// ...as well as the - and = (meaning +) keys.
 				+ if self.is_key_down(Key::Equal) { KEYBOARD_ZOOM_SPEED * delta } else { 0.0 }
-				- if self.is_key_down(Key::Minus) { KEYBOARD_ZOOM_SPEED * delta } else { 0.0 }
-			).clamp(16.0, 128.0);
+					- if self.is_key_down(Key::Minus) {
+						KEYBOARD_ZOOM_SPEED * delta
+					} else {
+						0.0
+					})
+				.clamp(16.0, 128.0);
 			map.zoom = map.zoom - map_zoom_delta;
 
 			map.scroll[0] += x * map_zoom_delta;
@@ -252,23 +251,19 @@ impl CustomUi for Ui {
 				}
 
 				if !self.is_key_down(Key::MouseMiddle) {
-					let tx = x.floor() * map.zoom
-						+ map.scroll[0]
-						+ window_pos[0];
-					let ty = y.floor() * map.zoom
-						+ map.scroll[1]
-						+ window_pos[1];
+					let tx = x.floor() * map.zoom + map.scroll[0] + window_pos[0];
+					let ty = y.floor() * map.zoom + map.scroll[1] + window_pos[1];
 					// Draw a placement preview.
-					draw_list.add_image(
-						texture_atlas[selected_tile],
-						[tx, ty],
-						[tx + map.zoom, ty + map.zoom]
-					).build();
-					draw_list.add_image(
-						cursor_tile,
-						[tx, ty],
-						[tx + map.zoom, ty + map.zoom]
-					).build();
+					draw_list
+						.add_image(
+							texture_atlas[selected_tile],
+							[tx, ty],
+							[tx + map.zoom, ty + map.zoom],
+						)
+						.build();
+					draw_list
+						.add_image(cursor_tile, [tx, ty], [tx + map.zoom, ty + map.zoom])
+						.build();
 				}
 			}
 		}
@@ -303,11 +298,7 @@ impl CustomUi for Ui {
 					if i % 3 != 0 {
 						self.same_line();
 					}
-					if self.image_button(
-						i.to_string(),
-						class_icons[&class.texture],
-						[32.0; 2]
-					) {
+					if self.image_button(i.to_string(), class_icons[&class.texture], [32.0; 2]) {
 						let unit = unit
 							.as_mut()
 							.expect("No unit found but class popup is open");
@@ -324,7 +315,7 @@ impl CustomUi for Ui {
 				if self.image_button(
 					"Class selector",
 					class_icons[&classes[unit.class].texture],
-					[32.0; 2]
+					[32.0; 2],
 				) {
 					self.open_popup("class menu");
 				}
@@ -345,10 +336,8 @@ impl CustomUi for Ui {
 			} else {
 				// Nothing selected
 				if self.button("Place Unit") && classes.len() > 0 {
-					let unit = MapUnit::at_position(
-						map.info_popup.position.0,
-						map.info_popup.position.1,
-					);
+					let unit =
+						MapUnit::at_position(map.info_popup.position.0, map.info_popup.position.1);
 					map.data.units.push(unit);
 				};
 				if classes.len() == 0 {
@@ -359,27 +348,26 @@ impl CustomUi for Ui {
 					self.close_current_popup();
 				}
 			}
-
 		});
 
 		for i in &map.data.units {
 			let x = window_pos[0] + map.scroll[0] + (i.x as f32) * map.zoom;
 			let y = window_pos[1] + map.scroll[1] + (i.y as f32) * map.zoom;
-			draw_list.add_image(
-				class_icons[&classes[i.class].texture],
-				[x, y],
-				[x + map.zoom, y + map.zoom]
-			).build();
+			draw_list
+				.add_image(
+					class_icons[&classes[i.class].texture],
+					[x, y],
+					[x + map.zoom, y + map.zoom],
+				)
+				.build();
 		}
 
 		for i in &map.data.spawns {
 			let x = window_pos[0] + map.scroll[0] + (i.0 as f32) * map.zoom;
 			let y = window_pos[1] + map.scroll[1] + (i.1 as f32) * map.zoom;
-			draw_list.add_image(
-				cursor_tile,
-				[x, y],
-				[x + map.zoom, y + map.zoom]
-			).build();
+			draw_list
+				.add_image(cursor_tile, [x, y], [x + map.zoom, y + map.zoom])
+				.build();
 		}
 	}
 

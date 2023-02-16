@@ -48,7 +48,10 @@ impl EditorConfig {
 		} else if args.len() == 2 {
 			&args[1]
 		} else {
-			Err(FeError::from(format!("Too many args. Usage: {} [config file]", args[0])))?
+			Err(FeError::from(format!(
+				"Too many args. Usage: {} [config file]",
+				args[0]
+			)))?
 		};
 
 		let mut config = EditorConfig {
@@ -88,17 +91,19 @@ fn walk_directory(
 	mut f: impl FnMut(fs::DirEntry) -> Result<(), Box<dyn Error>>,
 ) -> Result<(), Box<dyn Error>> {
 	if let Err(msg) = fs::create_dir_all(&path) {
-		Err(FeError::from(format!("Cannot create level directory: {msg}")))?
+		Err(FeError::from(format!(
+			"Cannot create level directory: {msg}"
+		)))?
 	}
 
 	// Now try to iterate over it.
 	let dir = match fs::read_dir(&path) {
 		Ok(dir) => dir,
-		Err(msg) => {
-			Err(FeError::from(format!("Cannot load level list: {msg}")))?
-		}
+		Err(msg) => Err(FeError::from(format!("Cannot load level list: {msg}")))?,
 	};
-	for entry in dir.filter_map(|e| e.ok()) { f(entry)?; }
+	for entry in dir.filter_map(|e| e.ok()) {
+		f(entry)?;
+	}
 
 	Ok(())
 }
@@ -115,10 +120,7 @@ fn save(
 	fs::create_dir_all(&path)?;
 
 	let toml = class_editor.to_toml()?;
-	fs::write(
-		append_path(&path, "classes.toml"),
-		toml
-	)?;
+	fs::write(append_path(&path, "classes.toml"), toml)?;
 	class_editor.unsaved = false;
 
 	if let Some(map_editor) = map_editor {
@@ -149,13 +151,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 		system.renderer.textures(),
 		// This unwrap is safe; CURSOR_PNG is constant.
 		&image::load_from_memory(CURSOR_PNG).unwrap(),
-	).unwrap();
+	)
+	.unwrap();
 
 	let texture_atlas = register_tileset(
 		system.display.get_context(),
 		system.renderer.textures(),
 		&image::open(append_path(&config.save_path, "tileset.png"))?,
-	).unwrap();
+	)
+	.unwrap();
 
 	// In the future, class/unit icons should be loaded from some config file.
 	// Classes can be serialized in unit data as their names, since this is how users will identify them.
@@ -165,11 +169,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 	if let Err(msg) = walk_directory(&unit_icons_path, |entry| {
 		// Set the default class to whatever we find first.
 		default_class_icon = Some(entry.path());
-		unit_icons.insert(entry.path(), register_image(
-			system.display.get_context(),
-			system.renderer.textures(),
-			&image::open(entry.path())?,
-		)?);
+		unit_icons.insert(
+			entry.path(),
+			register_image(
+				system.display.get_context(),
+				system.renderer.textures(),
+				&image::open(entry.path())?,
+			)?,
+		);
 		Ok(())
 	}) {
 		eprintln!("Failed to load unit icons: {msg}");
@@ -258,19 +265,26 @@ fn main() -> Result<(), Box<dyn Error>> {
 		if let Some(mut map_editor) = map_editor.as_mut() {
 			ui.window("Map Editor")
 				.size(
-					[display_size[0] - TILE_SELECTOR_MARGIN, display_size[0] - MAIN_MENU_HEIGHT],
+					[
+						display_size[0] - TILE_SELECTOR_MARGIN,
+						display_size[0] - MAIN_MENU_HEIGHT,
+					],
 					Condition::Always,
 				)
-				.position(
-					[0.0, MAIN_MENU_HEIGHT],
-					Condition::Always,
-				)
+				.position([0.0, MAIN_MENU_HEIGHT], Condition::Always)
 				.movable(false)
 				.bring_to_front_on_focus(false)
 				.focus_on_appearing(false)
 				.no_decoration()
 				.build(|| {
-					ui.tilemap(&mut map_editor, &texture_atlas, &class_editor.classes, &unit_icons, cursor_tile, selected_tile)
+					ui.tilemap(
+						&mut map_editor,
+						&texture_atlas,
+						&class_editor.classes,
+						&unit_icons,
+						cursor_tile,
+						selected_tile,
+					)
 				});
 
 			ui.window("Tile Selector")
@@ -287,11 +301,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 				.focus_on_appearing(false)
 				.no_decoration()
 				.build(|| {
-					selected_tile = ui.tile_selector(
-						&texture_atlas,
-						selected_tile,
-						cursor_tile,
-					);
+					selected_tile = ui.tile_selector(&texture_atlas, selected_tile, cursor_tile);
 				});
 		}
 
@@ -318,11 +328,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 		autosave_timer += ui.io().delta_time;
 
 		if manual_save || ctrl && ui.is_key_pressed(Key::S) {
-			match save(
-				config.save_path.clone(),
-				&mut class_editor,
-				&mut map_editor,
-			) {
+			match save(config.save_path.clone(), &mut class_editor, &mut map_editor) {
 				Ok(_) => eprintln!("Saved"),
 				Err(err) => {
 					warning_message = format!("Save failed: {err}");

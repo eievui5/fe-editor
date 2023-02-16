@@ -182,7 +182,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 	let mut unit_editor = UnitEditor::new();
 	let mut class_editor = ClassEditor::open(
 		append_path(&config.save_path, "classes.toml"),
-		unit_icons[0]
+		unit_icons,
 	);
 	let mut map_editor: Option<MapEditor> = None;
 	// Popups
@@ -193,7 +193,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 	system.main_loop(move |_, ui| {
 		let display_size = ui.io().display_size;
-		let ctrl = if ui.io().config_mac_os_behaviors { "Cmd" } else { "Ctrl" };
+
+		let (ctrl, ctrl_str) = if ui.io().config_mac_os_behaviors {
+			(ui.io().key_super, "Cmd")
+		} else {
+			(ui.io().key_ctrl, "Ctrl")
+		};
 		let mut warning_popup = ModalCapsule::new();
 		let mut open_map_popup = ModalCapsule::new();
 		new_map_popup.capsule.reset();
@@ -210,7 +215,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 					open_map_popup.open();
 					level_name = String::new();
 				}
-				if ui.menu_item(&format!("Save ({ctrl} + S)")) {
+				if ui.menu_item(&format!("Save ({ctrl_str} + S)")) {
 					manual_save = true;
 				}
 			});
@@ -309,7 +314,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 		}
 		autosave_timer += ui.io().delta_time;
 
-		if manual_save || ui.io().key_ctrl && ui.is_key_pressed(Key::S) {
+		if manual_save || ctrl && ui.is_key_pressed(Key::S) {
 			match save(
 				config.save_path.clone(),
 				&mut class_editor,
@@ -401,6 +406,5 @@ fn main() -> Result<(), Box<dyn Error>> {
 			}
 		});
 	});
-
 	Ok(())
 }

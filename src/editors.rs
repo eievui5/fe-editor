@@ -177,6 +177,7 @@ impl EditorList for UnitEditor {
 #[derive(Hash)]
 pub struct ClassData {
 	pub texture_id: TextureId,
+	textures: Vec<TextureId>,
 	// Data
 	pub name: String,
 	pub desc: String,
@@ -186,9 +187,10 @@ pub struct ClassData {
 }
 
 impl ClassData {
-	pub fn with_texture(texture_id: TextureId) -> Self {
+	pub fn with_textures(textures: Vec<TextureId>) -> Self {
 		Self {
-			texture_id,
+			texture_id: textures[0],
+			textures,
 			name: String::new(),
 			desc: String::new(),
 			uuid: Uuid::new_v4(),
@@ -214,6 +216,10 @@ impl ListItem for ClassData {
 		ui.input_text("##name", &mut self.name)
 			.hint("Name")
 			.build();
+		if ui.image_button("##class", self.texture_id, [32.0, 32.0]) {
+			ui.open_popup("Select Icon");
+		}
+		ui.hover_tooltip("Click to select class icon");
 
 		ui.text("Description:");
 		ui.input_text_multiline(
@@ -221,6 +227,23 @@ impl ListItem for ClassData {
 			&mut self.desc,
 			[ui.content_region_avail()[0], 64.0]
 		).build();
+
+		ui.popup("Select Icon", || {
+			ui.text("Select an icon");
+			for (i, texture) in self.textures.iter().enumerate() {
+				// Classes per row.
+				if i % 3 != 0 {
+					ui.same_line();
+				}
+				if ui.image_button(
+					i.to_string(),
+					*texture,
+					[32.0; 2]
+				) {
+					self.texture_id = *texture;
+				}
+			}
+		});
 	}
 
 	fn close(&mut self) { self.is_open = false; }
@@ -234,27 +257,17 @@ pub struct ClassEditor {
 	pub is_shown: bool,
 	pub classes: Vec<ClassData>,
 	pub search_field: String,
-	pub default_texture: TextureId,
+	pub class_icons: Vec<TextureId>,
 }
 
 impl ClassEditor {
-	pub fn with_texture(default_texture: TextureId) -> Self {
-		Self {
-			unsaved: false,
-			is_shown: true,
-			classes: Vec::new(),
-			search_field: String::new(),
-			default_texture,
-		}
-	}
-
-	pub fn open(path: impl AsRef<Path>, default_texture: TextureId) -> Self {
+	pub fn open(path: impl AsRef<Path>, class_icons: Vec<TextureId>) -> Self {
 		let mut classes = Vec::new();
 
 		if let Ok(toml) = fs::read_to_string(path) {
 			let class_table: Table = toml.parse().unwrap();
 			for (name, table) in class_table {
-				let mut class = ClassData::with_texture(default_texture);
+				let mut class = ClassData::with_textures(class_icons.clone());
 				class.name = name;
 				if let Value::String(desc) = &table["desc"] {
 					class.desc = desc.to_string()
@@ -268,7 +281,7 @@ impl ClassEditor {
 			is_shown: true,
 			classes,
 			search_field: String::new(),
-			default_texture,
+			class_icons,
 		}
 	}
 
@@ -288,7 +301,9 @@ impl EditorList for ClassEditor {
 	fn entries(&self) -> &Vec<Self::Item> { &self.classes }
 	fn entries_mut(&mut self) -> &mut Vec<Self::Item> { &mut self.classes }
 	fn add_entry(&mut self) {
-		self.classes.push(ClassData::with_texture(self.default_texture));
+		self.classes.push(
+			ClassData::with_textures(self.class_icons.clone())
+		);
 	}
 	fn unsaved(&mut self) -> &mut bool { &mut self.unsaved }
 	fn search(&self) -> &str { &self.search_field }

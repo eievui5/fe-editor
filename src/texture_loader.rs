@@ -6,24 +6,9 @@ use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter, SamplerBehavior
 use image::{GenericImageView, Pixel, Rgba};
 use imgui::{TextureId, Textures};
 use imgui_glium_renderer::Texture;
-use std::{borrow::Cow, error::Error, path::Path, rc::Rc};
+use std::{borrow::Cow, error::Error, rc::Rc};
 
 const TILE_SIZE: u32 = 16;
-
-pub fn register_image_path<F, I: GenericImageView<Pixel=Rgba<u8>>>(
-	gl_ctx: &F,
-	textures: &mut Textures<Texture>,
-	path: impl AsRef<Path>,
-) -> Result<TextureId, Box<dyn Error>> where F: Facade {
-	register_image(
-		gl_ctx,
-		textures,
-		&image::io::Reader::open(path)
-			.unwrap()
-			.decode()
-			.unwrap()
-	)
-}
 
 pub fn register_tileset<F, I: GenericImageView<Pixel=Rgba<u8>>>(
 	gl_ctx: &F,

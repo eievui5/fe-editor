@@ -46,6 +46,7 @@ pub trait CustomUi {
 		map: &mut MapEditor,
 		texture_atlas: &Vec<TextureId>,
 		classes: &Vec<ClassData>,
+		class_icons: &ClassIcons,
 		cursor_tile: TextureId,
 		selected_tile: usize,
 	);
@@ -177,6 +178,7 @@ impl CustomUi for Ui {
 		map: &mut MapEditor,
 		texture_atlas: &Vec<TextureId>,
 		classes: &Vec<ClassData>,
+		class_icons: &ClassIcons,
 		cursor_tile: TextureId,
 		selected_tile: usize,
 	) {
@@ -303,7 +305,7 @@ impl CustomUi for Ui {
 					}
 					if self.image_button(
 						i.to_string(),
-						class.texture_id,
+						class_icons[&class.texture],
 						[32.0; 2]
 					) {
 						let unit = unit
@@ -321,7 +323,7 @@ impl CustomUi for Ui {
 				self.same_line();
 				if self.image_button(
 					"Class selector",
-					classes[unit.class].texture_id,
+					class_icons[&classes[unit.class].texture],
 					[32.0; 2]
 				) {
 					self.open_popup("class menu");
@@ -364,7 +366,7 @@ impl CustomUi for Ui {
 			let x = window_pos[0] + map.scroll[0] + (i.x as f32) * map.zoom;
 			let y = window_pos[1] + map.scroll[1] + (i.y as f32) * map.zoom;
 			draw_list.add_image(
-				classes[i.class].texture_id,
+				class_icons[&classes[i.class].texture],
 				[x, y],
 				[x + map.zoom, y + map.zoom]
 			).build();

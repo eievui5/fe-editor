@@ -159,10 +159,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 	// In the future, class/unit icons should be loaded from some config file.
 	// Classes can be serialized in unit data as their names, since this is how users will identify them.
-	let mut unit_icons = Vec::new();
+	let mut default_class_icon = None;
+	let mut unit_icons = ClassIcons::new();
 
 	if let Err(msg) = walk_directory(&unit_icons_path, |entry| {
-		unit_icons.append(&mut register_tileset(
+		// Set the default class to whatever we find first.
+		default_class_icon = Some(entry.path());
+		unit_icons.insert(entry.path(), register_image(
 			system.display.get_context(),
 			system.renderer.textures(),
 			&image::open(entry.path())?,
@@ -182,7 +185,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 	let mut unit_editor = UnitEditor::new();
 	let mut class_editor = ClassEditor::open(
 		append_path(&config.save_path, "classes.toml"),
-		unit_icons,
+		// This is safe to unwrap.
+		default_class_icon.unwrap(),
 	);
 	let mut map_editor: Option<MapEditor> = None;
 	// Popups
@@ -245,11 +249,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 			(MAP_VIEWER_MARGIN + 200.0, EDITOR_LIST_Y),
 		);
 
-		ui.editor_list(
-			&mut class_editor,
-			"Classes",
-			"Class",
+		class_editor.draw(
+			&ui,
 			(MAP_VIEWER_MARGIN + 200.0 * 2.0, EDITOR_LIST_Y),
+			&unit_icons,
 		);
 
 		if let Some(mut map_editor) = map_editor.as_mut() {
@@ -267,7 +270,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 				.focus_on_appearing(false)
 				.no_decoration()
 				.build(|| {
-					ui.tilemap(&mut map_editor, &texture_atlas, &class_editor.classes, cursor_tile, selected_tile)
+					ui.tilemap(&mut map_editor, &texture_atlas, &class_editor.classes, &unit_icons, cursor_tile, selected_tile)
 				});
 
 			ui.window("Tile Selector")

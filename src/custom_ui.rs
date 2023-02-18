@@ -1,5 +1,6 @@
 use crate::*;
 use imgui::*;
+use imgui::color::ImColor32;
 
 const MOUSE_WHEEL_ZOOM_SPEED: f32 = 3.0;
 const KEYBOARD_ZOOM_SPEED: f32 = 32.0;
@@ -245,6 +246,21 @@ impl CustomUi for Ui {
 					[x + map.zoom, y + map.zoom],
 				)
 				.build();
+			if i.name.len() > 0 {
+				const NAME_MARGIN: f32 = 4.0;
+				let size = self.calc_text_size(&i.name);
+				let center = x + map.zoom / 2.0 - size[0] / 2.0;
+				draw_list
+					.add_rect(
+						[center - NAME_MARGIN, y - size[1] - NAME_MARGIN],
+						[center + size[0] + NAME_MARGIN, y + NAME_MARGIN],
+						ImColor32::from_rgb(20, 20, 20)
+					)
+					.filled(true)
+					.rounding(5.0)
+					.build();
+				draw_list.add_text([center, y - size[1]], ImColor32::WHITE, &i.name);
+			}
 		}
 
 		for i in &map.data.spawns {
